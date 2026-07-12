@@ -4,7 +4,12 @@ node_modules/
 # Build output
 /dist/
 /build/
-/.vite/
+/.next/
+/out/
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
 
 # Environment variables
 .env

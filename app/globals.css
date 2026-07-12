@@ -1,0 +1,103 @@
+@import "tailwindcss";
+
+body {
+  margin: 0;
+  background: #FAF8F4;
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+* {
+  box-sizing: border-box;
+}
+input, select, textarea, button {
+  font-family: 'Inter', system-ui, sans-serif;
+}
+::placeholder {
+  color: #9CA3AF;
+}
+a {
+  color: #2563EB;
+  text-decoration: none;
+}
+a:hover {
+  color: #1D4ED8;
+}
+@keyframes mc-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes mc-fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes mc-pop {
+  0% { opacity: 0; transform: scale(.94); }
+  100% { opacity: 1; transform: scale(1); }
+}
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: #E5E7EB;
+  border-radius: 8px;
+}
+
+.mc-input:focus {
+  border-color: #16A34A !important;
+}
+
+.mc-profile-card:hover {
+  box-shadow: 0 8px 24px rgba(30, 58, 95, 0.10);
+  transform: translateY(-2px);
+}
+.mc-icon-btn:hover {
+  background: #FAF8F4;
+}
+.mc-menu-item:hover {
+  background: #FAF8F4;
+}
+.mc-menu-item-danger:hover {
+  background: #FEF2F2;
+}
+.mc-new-profile-tile:hover {
+  border-color: #16A34A;
+  background: #FFFFFF;
+}
+.mc-submit-btn:hover {
+  background: #15803D;
+}
+.mc-chat-cta:hover {
+  background: rgba(22, 163, 74, 0.05);
+}
+.mc-example-q:hover {
+  border-color: #16A34A;
+  background: rgba(22, 163, 74, 0.03);
+}
+.mc-dropdown-row:hover {
+  background: #F9FAFB;
+}
+.mc-top3-card:hover {
+  box-shadow: 0 8px 22px rgba(16, 24, 40, 0.09);
+  transform: translateY(-2px);
+}
+.mc-ranking-row:hover {
+  background: #F9FAFB;
+}
+.mc-ranking-card:hover {
+  box-shadow: 0 8px 22px rgba(16, 24, 40, 0.10);
+  transform: translateY(-2px);
+}
+.mc-map-path {
+  transition: opacity .12s;
+}
+.mc-map-path:hover {
+  opacity: 0.78;
+}
+.mc-bubble {
+  transition: transform .15s;
+}
+.mc-bubble:hover {
+  transform: translate(-50%, -50%) scale(1.35);
+  z-index: 10;
+}
