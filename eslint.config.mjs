@@ -10,6 +10,10 @@ const compat = new FlatCompat({
 });
 
 const eslintConfig = [
+  // Global ignore: generated Next.js files are not source we lint or edit.
+  // `next-env.d.ts` is auto-generated (and self-labeled "should not be edited"),
+  // so its triple-slash references are not our code to fix.
+  { ignores: [".next/**", "next-env.d.ts"] },
   ...compat.extends("next/core-web-vitals", "next/typescript"),
 ];
 
