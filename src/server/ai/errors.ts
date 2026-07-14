@@ -3,7 +3,8 @@ import "server-only";
 export type AIErrorCode =
   | "AI_CONFIG_ERROR"
   | "AI_PROVIDER_ERROR"
-  | "AI_INVALID_RESPONSE";
+  | "AI_INVALID_RESPONSE"
+  | "AI_INTERNAL_ERROR";
 
 /**
  * Base class for all MarketCompassAI errors. `publicMessage` is safe to
