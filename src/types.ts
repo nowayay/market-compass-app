@@ -173,4 +173,6 @@ export interface AppState {
   chatOpen: boolean;
   chatMessages: ChatMessage[];
   chatInput: string;
+  chatGenerating: boolean;
+  chatError: string | null;
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
-import type { ChangeEvent, KeyboardEvent, MouseEvent } from 'react';
+import type { ChangeEvent, MouseEvent } from 'react';
 import { geoNaturalEarth1, geoPath } from 'd3-geo';
 import type { FeatureCollection } from 'geojson';
 import {
@@ -12,6 +12,14 @@ import {
   inferCompanyProfile,
 } from './data/marketData';
 import { decorateResult } from './lib/derive';
+import {
+  ChatClientError,
+  isAbortError,
+  prepareRequestHistory,
+  streamChat,
+  MAX_MESSAGE_CHARS,
+} from './lib/ai/chatClient';
+import type { ChatRequestMessage } from './lib/ai/chatClient';
 import type { AppState, ChatMessage, Company, Profile } from './types';
 import ProfileSelectScreen from './screens/ProfileSelectScreen';
 import CompanyFormScreen from './screens/CompanyFormScreen';
@@ -69,15 +77,33 @@ const initialState: AppState = {
   chatOpen: false,
   chatMessages: [],
   chatInput: '',
+  chatGenerating: false,
+  chatError: null,
 };
+
+const CHAT_GREETING =
+  'Cześć! Jestem asystentem MarketCompass. Zapytaj mnie o dowolny rynek, ryzyko, strategię ekspansji lub o informacje na temat danego przedsiębiorstwa.\n';
+const CHAT_GENERIC_ERROR =
+  'Nie udało się uzyskać odpowiedzi MarketCompassAI. Spróbuj ponownie.';
 
 export default function App() {
   const [state, setState] = useState<AppState>(initialState);
   const stateRef = useRef(state);
   stateRef.current = state;
 
+  // AbortController for the in-flight chat generation, if any. Kept in a ref so
+  // it survives re-renders and doubles as the "a generation is active" guard.
+  const chatAbortRef = useRef<AbortController | null>(null);
+  // Monotonic identity of the active generation. A generation only mutates chat
+  // state while its id still matches; closing/superseding a request bumps this
+  // so late deltas or errors from an obsolete request are ignored.
+  const chatGenRef = useRef(0);
+
   const patch = (updates: Partial<AppState> | ((s: AppState) => Partial<AppState>)) =>
     setState((s) => ({ ...s, ...(typeof updates === 'function' ? updates(s) : updates) }));
+
+  // Abort any active chat request when the app unmounts.
+  useEffect(() => () => chatAbortRef.current?.abort(), []);
 
   // Client-only: pick up any previously saved profiles from localStorage.
   useEffect(() => {
@@ -206,42 +232,128 @@ export default function App() {
   const closeMapFull = () => patch({ mapFull: false });
   const toggleProfileMenu = () => patch((s) => ({ profileMenuOpen: !s.profileMenuOpen }));
 
-  function chatReply(q: string): string {
-    const s = stateRef.current;
-    const top = (s.results || []).slice(0, 3).map((r) => `${r.country.name} (${r.score}/100)`);
-    const topLine = top.length ? top.join(', ') : 'brak danych';
-    const low = q.toLowerCase();
-    if (low.includes('niemc') || low.includes('francj')) {
-      const de = s.results.find((r) => r.country.id === 'de');
-      const fr = s.results.find((r) => r.country.id === 'fr');
-      if (de && fr) return `Porównanie:\n• Niemcy — ${de.score}/100, ryzyko ${de.risk.toLowerCase()}, bardzo duży rynek, ale wysoka konkurencja.\n• Francja — ${fr.score}/100, ryzyko ${fr.risk.toLowerCase()}, stabilny popyt.\nDla Twojego profilu ${de.score >= fr.score ? 'Niemcy' : 'Francja'} wypada nieco lepiej.`;
+  // Append a streamed delta to the current (last) assistant placeholder,
+  // leaving every earlier message untouched.
+  function appendAssistantDelta(delta: string) {
+    setState((s) => {
+      const msgs = s.chatMessages.slice();
+      const last = msgs[msgs.length - 1];
+      if (last && last.role === 'assistant') {
+        msgs[msgs.length - 1] = { ...last, text: last.text + delta };
+      }
+      return { ...s, chatMessages: msgs };
+    });
+  }
+
+  // Drop a trailing assistant placeholder that never received any text.
+  function dropEmptyPlaceholder(msgs: ChatMessage[]): ChatMessage[] {
+    const last = msgs[msgs.length - 1];
+    if (last && last.role === 'assistant' && last.text.length === 0) {
+      return msgs.slice(0, -1);
     }
-    if (low.includes('azjat') || low.includes('azj')) {
-      return `Rynki azjatyckie w Twojej analizie oferują duży potencjał wzrostu, ale wiążą się z wyższym ryzykiem regulacyjnym i kursowym. Zwróć uwagę na bariery celne i lokalną konkurencję. Rozważ wejście przez lokalnego dystrybutora.`;
+    return msgs;
+  }
+
+  // Core send path shared by manual input and example questions. `baseMessages`
+  // is the conversation to build on, passed explicitly to avoid reading stale
+  // state right after opening the modal.
+  async function startGeneration(rawQuestion: string, baseMessages: ChatMessage[]) {
+    const question = rawQuestion.trim();
+    if (!question || question.length > MAX_MESSAGE_CHARS) return;
+    if (chatAbortRef.current) return; // a generation is already running
+
+    const requestHistory: ChatRequestMessage[] = prepareRequestHistory(
+      baseMessages.map((m) => ({ role: m.role, content: m.text })),
+      question,
+    );
+
+    const controller = new AbortController();
+    const genId = ++chatGenRef.current;
+    chatAbortRef.current = controller;
+
+    patch({
+      chatOpen: true,
+      chatMessages: [
+        ...baseMessages,
+        { role: 'user', text: question },
+        { role: 'assistant', text: '' },
+      ],
+      chatInput: '',
+      chatGenerating: true,
+      chatError: null,
+    });
+
+    try {
+      await streamChat(
+        requestHistory,
+        {
+          onTextDelta: (delta) => {
+            // Ignore deltas from a superseded/closed generation.
+            if (chatGenRef.current === genId) appendAssistantDelta(delta);
+          },
+        },
+        controller.signal,
+      );
+      if (chatGenRef.current === genId) patch({ chatGenerating: false });
+    } catch (err) {
+      // An obsolete generation must not touch chat state that now belongs to a
+      // newer generation (or a freshly reopened chat).
+      if (chatGenRef.current !== genId) return;
+      if (isAbortError(err)) {
+        // User-initiated stop: keep any streamed text, drop an empty bubble,
+        // and show no error.
+        setState((s) => ({
+          ...s,
+          chatMessages: dropEmptyPlaceholder(s.chatMessages),
+          chatGenerating: false,
+        }));
+      } else {
+        const message = err instanceof ChatClientError ? err.message : CHAT_GENERIC_ERROR;
+        setState((s) => ({
+          ...s,
+          chatMessages: dropEmptyPlaceholder(s.chatMessages),
+          chatGenerating: false,
+          chatError: message,
+        }));
+      }
+    } finally {
+      if (chatAbortRef.current === controller) chatAbortRef.current = null;
     }
-    if (low.includes('usa') || low.includes('stan')) {
-      const us = s.results.find((r) => r.country.id === 'us');
-      return us ? `Wejście na rynek USA (${us.score}/100): to największy rynek świata, ale bardzo konkurencyjny. Przewidywany poziom inwestycji: ${us.investmentLevel.toLowerCase()} (${us.investmentRange}). Rekomendowana strategia: ${us.strategy}.` : `Rynek USA to największy, ale i najbardziej konkurencyjny rynek świata.`;
-    }
-    return `Na podstawie profilu Twojej firmy najlepiej dopasowane rynki to: ${topLine}. Chcesz, żebym rozwinął strategię wejścia dla któregoś z nich?`;
   }
 
   function openChat(question: string | null) {
-    const msgs: ChatMessage[] = [{ role: 'assistant', text: 'Cześć! Jestem asystentem MarketCompass. Zapytaj mnie o dowolny rynek, ryzyko, strategię ekspansji lub on informacje na temat danego przedsiębiorstwa.\n' }];
+    // Reuse the current session conversation; only seed the greeting when the
+    // chat is empty so closing and reopening preserves history.
+    const existing = stateRef.current.chatMessages;
+    const base: ChatMessage[] =
+      existing.length > 0 ? existing : [{ role: 'assistant', text: CHAT_GREETING }];
     if (question) {
-      msgs.push({ role: 'user' as const, text: question });
-      msgs.push({ role: 'assistant' as const, text: chatReply(question) });
+      startGeneration(question, base);
+    } else {
+      patch({ chatOpen: true, chatMessages: base, chatInput: '', chatError: null });
     }
-    patch({ chatOpen: true, chatMessages: msgs, chatInput: '' });
   }
-  const closeChat = () => patch({ chatOpen: false });
+  function closeChat() {
+    // Abort and invalidate the active generation so late deltas/errors cannot
+    // mutate the conversation after (or when) the chat is reopened. Preserve any
+    // streamed text and drop a still-empty placeholder.
+    chatAbortRef.current?.abort();
+    chatAbortRef.current = null;
+    chatGenRef.current++;
+    setState((s) => ({
+      ...s,
+      chatOpen: false,
+      chatGenerating: false,
+      chatError: null,
+      chatMessages: dropEmptyPlaceholder(s.chatMessages),
+    }));
+  }
   const onChatInputChange = (e: ChangeEvent<HTMLInputElement>) => patch({ chatInput: e.target.value });
-  const onChatKey = (e: KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter') sendChat(); };
   function sendChat() {
-    const q = stateRef.current.chatInput.trim();
-    if (!q) return;
-    const msgs = [...stateRef.current.chatMessages, { role: 'user' as const, text: q }, { role: 'assistant' as const, text: chatReply(q) }];
-    patch({ chatMessages: msgs, chatInput: '' });
+    startGeneration(stateRef.current.chatInput, stateRef.current.chatMessages);
+  }
+  function stopChat() {
+    chatAbortRef.current?.abort();
   }
 
   const decoratedResults = state.results.map((r) => decorateResult(r, openCountry));
@@ -319,10 +431,12 @@ export default function App() {
         <ChatModal
           messages={state.chatMessages}
           input={state.chatInput}
+          isGenerating={state.chatGenerating}
+          error={state.chatError}
           onClose={closeChat}
           onInputChange={onChatInputChange}
-          onKeyDown={onChatKey}
           onSend={sendChat}
+          onStop={stopChat}
         />
       )}
 
