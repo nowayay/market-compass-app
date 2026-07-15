@@ -68,7 +68,9 @@ export function buildCompanyProfile(
       },
       legalForm: company.legalForm,
       registrationDate: company.registrationDate,
-      foundedYear: query.foundedYear,
+      // foundedYear is a user-provided identification hint, never a confirmed
+      // company fact — it is deliberately NOT set on the profile. KRS
+      // registrationDate is also not a founding date.
     },
     location: {
       city: company.city,
@@ -198,14 +200,18 @@ export function buildCompletedResponse(args: {
   company: KrsCompany;
   version: string;
   researchedAt: string;
+  /** Extra (non-KRS) provenance sources, e.g. web discovery in the name flow. */
+  extraSources?: ResearchSource[];
 }): CompletedResponse {
+  // Website discovery/verification is a separate later stage — never set from a
+  // single web-search result here.
   return {
     status: "completed",
     requestId: args.requestId,
     query: toResponseQuery(args.query),
     company: buildCompanyProfile(args.company, args.query),
     expansionInputs: buildExpansionInputs(args.company),
-    sources: [buildKrsSource(args.company)],
+    sources: [buildKrsSource(args.company), ...(args.extraSources ?? [])],
     quality: buildResearchQuality(args.company, args.query),
     meta: { researchedAt: args.researchedAt, version: args.version },
   };

@@ -12,7 +12,7 @@ import {
 } from "./errors.ts";
 import { readRequestBodyText } from "./http/readRequestBody.ts";
 import { researchCompany } from "./researchCompany.ts";
-import type { CompanyDataProvider } from "./types.ts";
+import type { CompanyResearchDeps } from "./researchCompany.ts";
 
 /** Hard limit on the request body size, in bytes. */
 export const MAX_BODY_BYTES = 8 * 1024;
@@ -64,7 +64,7 @@ function logResearch(fields: {
  */
 export async function handleCompanyResearch(
   request: Request,
-  provider: CompanyDataProvider,
+  deps: CompanyResearchDeps,
 ): Promise<Response> {
   const requestId = crypto.randomUUID();
   const startedAt = Date.now();
@@ -104,7 +104,7 @@ export async function handleCompanyResearch(
   const hasKrs = parsed.data.query.krs !== undefined;
 
   try {
-    const result = await researchCompany(parsed.data, provider, {
+    const result = await researchCompany(parsed.data, deps, {
       requestId,
       signal: request.signal,
     });
@@ -112,7 +112,7 @@ export async function handleCompanyResearch(
       requestId,
       status: result.status,
       durationMs: Date.now() - startedAt,
-      provider: provider.name,
+      provider: deps.krsProvider.name,
       hasKrs,
     });
     return jsonResponse(200, result);
@@ -135,7 +135,7 @@ export async function handleCompanyResearch(
         requestId,
         status: "error",
         durationMs: Date.now() - startedAt,
-        provider: provider.name,
+        provider: deps.krsProvider.name,
         hasKrs,
         errorCode: error.code,
       });
@@ -148,7 +148,7 @@ export async function handleCompanyResearch(
       requestId,
       status: "error",
       durationMs: Date.now() - startedAt,
-      provider: provider.name,
+      provider: deps.krsProvider.name,
       hasKrs,
       errorCode: "COMPANY_RESEARCH_INTERNAL_ERROR",
     });
