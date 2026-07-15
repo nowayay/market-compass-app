@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --test --experimental-strip-types \"src/server/company-research/__tests__/*.test.ts\"",
+    "test:typecheck": "tsc -p tsconfig.tests.json"
   },
   "dependencies": {
     "d3-geo": "^3.1.1",
