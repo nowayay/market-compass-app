@@ -9,7 +9,7 @@
  */
 
 /** Version stamped into every completed response's `meta`. */
-export const COMPANY_RESEARCH_VERSION = "1.0.0-stage1";
+export const COMPANY_RESEARCH_VERSION = "1.0.0-stage2";
 
 /** Registry / provider-agnostic company identifiers (legal entity only). */
 export interface CompanyIdentifiers {
@@ -211,11 +211,20 @@ export type CompanyResearchErrorCode =
   | "INVALID_REQUEST"
   | "INVALID_KRS"
   | "REQUEST_BODY_TOO_LARGE"
-  | "UNSUPPORTED_OPERATION"
   | "COMPANY_RESEARCH_PROVIDER_ERROR"
   | "COMPANY_RESEARCH_TIMEOUT"
   | "COMPANY_RESEARCH_CONFIGURATION_ERROR"
-  | "COMPANY_RESEARCH_INTERNAL_ERROR";
+  | "COMPANY_RESEARCH_INTERNAL_ERROR"
+  // Stage 2 — identification by name.
+  | "COMPANY_IDENTIFICATION_ERROR"
+  | "COMPANY_IDENTIFICATION_TIMEOUT"
+  | "COMPANY_IDENTIFICATION_DISABLED"
+  | "COMPANY_IDENTIFICATION_RATE_LIMITED"
+  | "COMPANY_IDENTIFICATION_BUSY"
+  | "INVALID_IDENTIFICATION_RESPONSE"
+  | "INVALID_CANDIDATE_ID"
+  | "CANDIDATE_NOT_FOUND"
+  | "CANDIDATE_QUERY_MISMATCH";
 
 /** Stable JSON error envelope for technical failures. */
 export interface CompanyResearchErrorResponse {

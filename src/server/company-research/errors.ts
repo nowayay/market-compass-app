@@ -38,15 +38,6 @@ export class RequestBodyTooLargeError extends CompanyResearchError {
   }
 }
 
-/** A feature that is contractually reserved but not yet implemented in stage 1. */
-export class UnsupportedOperationError extends CompanyResearchError {
-  readonly code: CompanyResearchErrorCode = "UNSUPPORTED_OPERATION";
-  constructor(message = "Unsupported operation") {
-    // Deliberately does NOT imply the confirmation flow works yet.
-    super(message, "Ta operacja nie jest jeszcze dostępna.");
-  }
-}
-
 /** The external data provider (e.g. KRS API) failed. */
 export class CompanyResearchProviderError extends CompanyResearchError {
   readonly code: CompanyResearchErrorCode = "COMPANY_RESEARCH_PROVIDER_ERROR";
@@ -82,6 +73,78 @@ export class CompanyResearchInternalError extends CompanyResearchError {
   }
 }
 
+/** The identification provider (OpenAI web search) failed. */
+export class CompanyIdentificationError extends CompanyResearchError {
+  readonly code: CompanyResearchErrorCode = "COMPANY_IDENTIFICATION_ERROR";
+  constructor(message: string, cause?: unknown) {
+    super(message, "Identyfikacja firmy jest chwilowo niedostępna. Spróbuj ponownie.", cause);
+  }
+}
+
+/** The identification provider timed out. */
+export class CompanyIdentificationTimeoutError extends CompanyResearchError {
+  readonly code: CompanyResearchErrorCode = "COMPANY_IDENTIFICATION_TIMEOUT";
+  constructor(message = "Identification provider timed out", cause?: unknown) {
+    super(message, "Przekroczono czas identyfikacji firmy. Spróbuj ponownie.", cause);
+  }
+}
+
+/** The identification provider returned an output that failed runtime validation. */
+export class InvalidIdentificationResponseError extends CompanyResearchError {
+  readonly code: CompanyResearchErrorCode = "INVALID_IDENTIFICATION_RESPONSE";
+  constructor(message = "Invalid identification response", cause?: unknown) {
+    super(message, "Nie udało się zidentyfikować firmy. Spróbuj ponownie.", cause);
+  }
+}
+
+/** The provided candidateId is not a valid, parseable identifier. */
+export class InvalidCandidateIdError extends CompanyResearchError {
+  readonly code: CompanyResearchErrorCode = "INVALID_CANDIDATE_ID";
+  constructor(message = "Invalid candidateId") {
+    super(message, "Nieprawidłowy identyfikator kandydata.");
+  }
+}
+
+/** The selected candidate's KRS number does not resolve to a registry entity. */
+export class CandidateNotFoundError extends CompanyResearchError {
+  readonly code: CompanyResearchErrorCode = "CANDIDATE_NOT_FOUND";
+  constructor(message = "Candidate not found in registry") {
+    super(message, "Nie znaleziono wybranego podmiotu w rejestrze.");
+  }
+}
+
+/** The selected candidate contradicts the query name. */
+export class CandidateQueryMismatchError extends CompanyResearchError {
+  readonly code: CompanyResearchErrorCode = "CANDIDATE_QUERY_MISMATCH";
+  constructor(message = "Selected candidate contradicts the query") {
+    super(message, "Wybrany podmiot nie odpowiada podanej nazwie firmy.");
+  }
+}
+
+/** Name identification (paid web search) is disabled by configuration. */
+export class CompanyIdentificationDisabledError extends CompanyResearchError {
+  readonly code: CompanyResearchErrorCode = "COMPANY_IDENTIFICATION_DISABLED";
+  constructor(message = "Name identification is disabled") {
+    super(message, "Identyfikacja firmy po nazwie jest obecnie wyłączona.");
+  }
+}
+
+/** The per-process identification window budget has been exhausted. */
+export class CompanyIdentificationRateLimitedError extends CompanyResearchError {
+  readonly code: CompanyResearchErrorCode = "COMPANY_IDENTIFICATION_RATE_LIMITED";
+  constructor(message = "Identification rate limit exceeded") {
+    super(message, "Zbyt wiele prób identyfikacji. Spróbuj ponownie za chwilę.");
+  }
+}
+
+/** Too many concurrent identifications in progress. */
+export class CompanyIdentificationBusyError extends CompanyResearchError {
+  readonly code: CompanyResearchErrorCode = "COMPANY_IDENTIFICATION_BUSY";
+  constructor(message = "Too many concurrent identifications") {
+    super(message, "Usługa identyfikacji jest chwilowo zajęta. Spróbuj ponownie.");
+  }
+}
+
 /**
  * Maps a Company Research error code onto an HTTP status. Pure and side-effect
  * free so it can be unit-tested in isolation.
@@ -92,13 +155,24 @@ export function errorHttpStatus(code: CompanyResearchErrorCode): number {
     case "INVALID_REQUEST":
     case "INVALID_KRS":
       return 400;
+    case "INVALID_CANDIDATE_ID":
+      return 400;
     case "REQUEST_BODY_TOO_LARGE":
       return 413;
-    case "UNSUPPORTED_OPERATION":
-      return 501;
+    case "CANDIDATE_NOT_FOUND":
+      return 404;
+    case "CANDIDATE_QUERY_MISMATCH":
+      return 409;
+    case "COMPANY_IDENTIFICATION_RATE_LIMITED":
+      return 429;
     case "COMPANY_RESEARCH_PROVIDER_ERROR":
+    case "COMPANY_IDENTIFICATION_ERROR":
+    case "INVALID_IDENTIFICATION_RESPONSE":
       return 502;
     case "COMPANY_RESEARCH_TIMEOUT":
+    case "COMPANY_IDENTIFICATION_TIMEOUT":
+    case "COMPANY_IDENTIFICATION_DISABLED":
+    case "COMPANY_IDENTIFICATION_BUSY":
       return 503;
     case "COMPANY_RESEARCH_CONFIGURATION_ERROR":
       return 500;

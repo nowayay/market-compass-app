@@ -22,7 +22,8 @@ test("final CompanyProfile contains no personal data", () => {
   const profile = buildCompanyProfile(company, query);
   assert.doesNotThrow(() => assertNoPersonalData(profile, "company"));
   assert.equal(profile.identity.legalName, "PRZYKŁADOWA SPÓŁKA SP. Z O.O.");
-  assert.equal(profile.identity.foundedYear, 2011);
+  // foundedYear from the query is a hint, never a confirmed profile fact.
+  assert.equal(profile.identity.foundedYear, undefined);
   assert.equal(profile.location.city, "WARSZAWA");
   assert.equal(profile.website.verified, false);
   // No management/owners/etc. sections exist on the profile at all.
