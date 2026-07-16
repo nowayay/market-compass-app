@@ -91,6 +91,7 @@ const NUMERIC_SAFE_KEYS: ReadonlySet<string> = new Set([
  *  - domainDiscoveryInput.legalName                         (discovery input)
  *  - …signals.matchedLegalName                              (discovery candidate)
  *  - domainDiscoverySignals[*].matchedLegalName             (discovery signals)
+ *  - domainConfirmationInput.legalName                      (confirmation input)
  */
 const LEGAL_NAME_PATH_RES: readonly RegExp[] = [
   /(?:^|\.)company\.identity\.legalName$/,
@@ -103,6 +104,8 @@ const LEGAL_NAME_PATH_RES: readonly RegExp[] = [
   /(?:^|\.)domainDiscoveryInput\.legalName$/,
   /(?:^|\.)signals\.matchedLegalName$/,
   /(?:^|\.)domainDiscoverySignals\[\d+\]\.matchedLegalName$/,
+  // Official domain confirmation — legal name is a search-targeting hint only.
+  /(?:^|\.)domainConfirmationInput\.legalName$/,
 ];
 
 /** True only for an explicit approved legal-entity-name path. */
@@ -150,6 +153,10 @@ const KNOWN_PATH_KEYS: ReadonlySet<string> = new Set([
   "matchedNip", "matchedRegon", "matchedCity",
   // Internal domain-evaluation result
   "reasons", "selectedCandidate",
+  // Internal domain-confirmation (input, provider result, decision)
+  "targetDomain", "targetOrigin", "found", "malformedKrs", "malformedNip",
+  "malformedRegon", "foundKrsValues", "foundNipValues", "foundRegonValues",
+  "confirmedOrigin", "verifiedIdentifiers",
 ]);
 
 /**
