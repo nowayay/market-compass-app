@@ -148,6 +148,8 @@ const KNOWN_PATH_KEYS: ReadonlySet<string> = new Set([
   // Internal domain-discovery candidates
   "origin", "signals", "sourceOrigins", "matchedLegalName", "matchedKrs",
   "matchedNip", "matchedRegon", "matchedCity",
+  // Internal domain-evaluation result
+  "reasons", "selectedCandidate",
 ]);
 
 /**
