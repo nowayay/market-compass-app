@@ -3,13 +3,20 @@ import type {
   CompanyResearchQuery,
   CompletedResponse,
   ExpansionResearchInputs,
+  FactEvidence,
   NotFoundResponse,
+  ResearchConflict,
+  ResearchEvidence,
   ResearchQuality,
   ResearchSource,
+  ResearchWarning,
   UnsupportedEntityReason,
   UnsupportedEntityTypeResponse,
 } from "../../../contracts/companyResearch";
 import type { KrsCompany, NormalizedQuery } from "../types";
+
+/** The stable id of the single KRS provenance source in a completed response. */
+const KRS_SOURCE_ID = "src_krs_1";
 
 /** Legal-form and connective stopwords ignored when comparing company names. */
 const NAME_STOPWORDS = new Set([
@@ -96,24 +103,55 @@ export function buildCompanyProfile(
 
 /** Builds the KRS provenance source (metadata only — no response content). */
 export function buildKrsSource(company: KrsCompany): ResearchSource {
-  const supports = ["company.identity.legalName", "company.identity.identifiers.krs"];
-  if (company.nip) supports.push("company.identity.identifiers.nip");
-  if (company.regon) supports.push("company.identity.identifiers.regon");
-  if (company.legalForm) supports.push("company.identity.legalForm");
-  if (company.registrationDate) supports.push("company.identity.registrationDate");
-  if (company.city) supports.push("company.location.city");
-  if (company.region) supports.push("company.location.region");
-  if (company.pkdPrimaryCode) supports.push("company.industry.primaryCode");
-
   return {
-    id: "src_krs_1",
+    id: KRS_SOURCE_ID,
     provider: "krs",
     type: "official_registry",
-    title: "Krajowy Rejestr Sądowy (odpis aktualny)",
-    retrievedAt: company.retrievedAt,
     authority: "primary",
-    supports,
+    // The KRS API is not a public web page: it has no origin-only URL to expose.
+    url: null,
+    domain: null,
+    retrievedAt: company.retrievedAt,
+    publishedAt: null,
   };
+}
+
+/**
+ * Builds fact-level evidence for the legal facts KRS actually provides. This is
+ * the single authoritative source-to-fact attribution mechanism. Evidence is
+ * created ONLY for facts that are present — absent optional KRS values never
+ * produce a fabricated evidence entry.
+ */
+export function buildKrsFactEvidence(
+  company: KrsCompany,
+  krsSourceId: string,
+  verifiedAt: string,
+): FactEvidence[] {
+  const facts: FactEvidence[] = [];
+  const add = (path: string, present: boolean): void => {
+    if (!present) return;
+    facts.push({
+      id: `fev_${path.replace(/\./g, "_")}`,
+      target: { path, itemId: null },
+      sourceIds: [krsSourceId],
+      support: "direct",
+      derivation: "registry",
+      confidence: 1,
+      verifiedAt,
+    });
+  };
+
+  add("company.identity.legalName", company.legalName.length > 0);
+  add("company.identity.identifiers.krs", company.krs.length > 0);
+  add("company.identity.identifiers.nip", Boolean(company.nip));
+  add("company.identity.identifiers.regon", Boolean(company.regon));
+  add("company.identity.legalForm", Boolean(company.legalForm));
+  add("company.identity.registrationDate", Boolean(company.registrationDate));
+  add("company.location.city", Boolean(company.city));
+  add("company.location.region", Boolean(company.region));
+  add("company.location.countryCode", company.countryCode.length > 0);
+
+  return facts;
 }
 
 /** Expansion inputs are mostly empty in stage 1; we flag what's still missing. */
@@ -146,8 +184,8 @@ export function buildResearchQuality(
   company: KrsCompany,
   query: NormalizedQuery,
 ): ResearchQuality {
-  const conflicts: string[] = [];
-  const warnings: string[] = [];
+  const conflicts: ResearchConflict[] = [];
+  const warnings: ResearchWarning[] = [];
 
   // KRS is an exact-identifier match, so confidence is high unless the caller's
   // provided name clearly conflicts with the registered name.
@@ -162,8 +200,17 @@ export function buildResearchQuality(
       if (!overlap) {
         level = "medium";
         score = 0.6;
-        conflicts.push("company.identity.legalName");
-        warnings.push("Podana nazwa nie zgadza się z nazwą rejestrową podmiotu.");
+        // Code-based structures only — never free text that could carry PII.
+        conflicts.push({
+          code: "legal_name_mismatch",
+          targetPath: "company.identity.legalName",
+          sourceIds: [KRS_SOURCE_ID],
+          resolution: "krs_preferred",
+        });
+        warnings.push({
+          code: "query_name_mismatch",
+          targetPath: "company.identity.legalName",
+        });
       }
     }
   }
@@ -205,13 +252,20 @@ export function buildCompletedResponse(args: {
 }): CompletedResponse {
   // Website discovery/verification is a separate later stage — never set from a
   // single web-search result here.
+  const krsSource = buildKrsSource(args.company);
+  const evidence: ResearchEvidence = {
+    // Evidence is attributed only to the KRS source. Web discovery sources are
+    // NOT claimed to support any legal fact (see mappers/toIdentificationResponse).
+    facts: buildKrsFactEvidence(args.company, krsSource.id, args.company.retrievedAt),
+  };
   return {
     status: "completed",
     requestId: args.requestId,
     query: toResponseQuery(args.query),
     company: buildCompanyProfile(args.company, args.query),
     expansionInputs: buildExpansionInputs(args.company),
-    sources: [buildKrsSource(args.company), ...(args.extraSources ?? [])],
+    sources: [krsSource, ...(args.extraSources ?? [])],
+    evidence,
     quality: buildResearchQuality(args.company, args.query),
     meta: { researchedAt: args.researchedAt, version: args.version },
   };

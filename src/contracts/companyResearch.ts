@@ -9,7 +9,7 @@
  */
 
 /** Version stamped into every completed response's `meta`. */
-export const COMPANY_RESEARCH_VERSION = "1.0.0-stage2";
+export const COMPANY_RESEARCH_VERSION = "1.0.0-stage3";
 
 /** Registry / provider-agnostic company identifiers (legal entity only). */
 export interface CompanyIdentifiers {
@@ -85,41 +85,126 @@ export interface CompanyCandidate {
   sourceIds: string[];
 }
 
-export type ResearchSourceProvider =
-  | "krs"
-  | "company_website"
-  | "annual_report"
-  | "web";
+export type ResearchSourceProvider = "krs" | "openai_web_search";
 
 export type ResearchSourceType =
   | "official_registry"
-  | "first_party"
-  | "financial_filing"
+  | "official_company_website"
+  | "official_company_document"
   | "government"
-  | "news"
-  | "other";
+  | "discovery_source";
 
-export type ResearchSourceAuthority = "primary" | "secondary";
+export type ResearchSourceAuthority =
+  | "primary"
+  | "authoritative_secondary"
+  | "secondary";
 
 /**
- * A provenance record. Stores only metadata about where a fact came from — never
- * the raw content of the source response.
+ * A provenance record. Stores only privacy-safe metadata about where a fact came
+ * from — never the raw content of the source response, and never an upstream
+ * title, snippet, full path, query string or fragment.
+ *
+ * The public `url` is ALWAYS origin-only (scheme + host, e.g.
+ * `https://company.example`) or `null`. Exact page URLs never appear here — they
+ * exist only transiently, in memory, during a single research request (see the
+ * server-only request-scoped types) and are reduced to their origin before any
+ * source object is created.
+ *
+ * Source-to-fact attribution is NOT represented here anymore. The single
+ * authoritative attribution mechanism is `evidence.facts` (see FactEvidence).
  */
 export interface ResearchSource {
   id: string;
   provider: ResearchSourceProvider;
   type: ResearchSourceType;
-  title: string;
-  url?: string;
-  domain?: string;
-  retrievedAt: string;
-  publishedAt?: string;
   authority: ResearchSourceAuthority;
-  /** Dotted field paths this source supports, e.g. `company.identity.legalName`. */
-  supports: string[];
+  /** Origin only (scheme + host), e.g. `https://company.example`, or null. */
+  url: string | null;
+  /** Hostname only, e.g. `company.example`, or null when not applicable. */
+  domain: string | null;
+  retrievedAt: string;
+  publishedAt: string | null;
+}
+
+/** How strongly a source backs a fact. */
+export type FactSupport = "direct" | "corroborating";
+
+/**
+ * How a fact's value was obtained:
+ * - `registry`    — copied verbatim from an official registry (KRS),
+ * - `extracted`   — extracted as a discrete value from a source,
+ * - `normalized`  — extracted then normalized to a canonical form,
+ * - `synthesized` — combined from multiple accepted facts,
+ * - `derived`     — computed deterministically by application code.
+ */
+export type FactDerivation =
+  | "registry"
+  | "extracted"
+  | "normalized"
+  | "synthesized"
+  | "derived";
+
+/** The profile field a piece of evidence attributes to. */
+export interface FactEvidenceTarget {
+  /** Dotted profile path, e.g. `company.identity.legalName`. */
+  path: string;
+  /** Id of the specific array item the fact targets, or null for a scalar. */
+  itemId: string | null;
+}
+
+/**
+ * Links a single material fact in the company profile to the source(s) that back
+ * it. This is the ONE authoritative source-to-fact attribution mechanism. It
+ * contains no natural-person data and no free-text description.
+ */
+export interface FactEvidence {
+  id: string;
+  target: FactEvidenceTarget;
+  /** At least one source id; ids are unique within a single evidence entry. */
+  sourceIds: string[];
+  support: FactSupport;
+  derivation: FactDerivation;
+  /** 0..1 confidence in the fact. */
+  confidence: number;
+  /** ISO datetime the fact was verified/retrieved. */
+  verifiedAt: string;
+}
+
+/** The evidence section attached to a completed research response. */
+export interface ResearchEvidence {
+  facts: FactEvidence[];
 }
 
 export type IdentityConfidenceLevel = "high" | "medium" | "low";
+
+/** How a conflict between sources was (or was not) resolved. */
+export type ConflictResolution =
+  | "krs_preferred"
+  | "official_source_preferred"
+  | "unresolved";
+
+/**
+ * A structured, code-driven record of a data conflict. Carries only stable codes
+ * and paths — never arbitrary free text (which could smuggle personal data).
+ */
+export interface ResearchConflict {
+  /** Stable machine code, e.g. `legal_name_mismatch`. */
+  code: string;
+  /** Dotted profile path the conflict concerns. */
+  targetPath: string;
+  sourceIds: string[];
+  resolution: ConflictResolution;
+}
+
+/**
+ * A structured, code-driven warning. Carries only a stable code and an optional
+ * path — no arbitrary message/description text.
+ */
+export interface ResearchWarning {
+  /** Stable machine code, e.g. `query_name_mismatch`. */
+  code: string;
+  targetPath: string | null;
+}
 
 export interface ResearchQuality {
   identityConfidence: {
@@ -128,8 +213,8 @@ export interface ResearchQuality {
   };
   completenessScore: number;
   missingFields: string[];
-  conflicts: string[];
-  warnings: string[];
+  conflicts: ResearchConflict[];
+  warnings: ResearchWarning[];
   lastVerifiedAt?: string;
 }
 
@@ -169,6 +254,8 @@ export interface CompletedResponse {
   company: CompanyProfile;
   expansionInputs: ExpansionResearchInputs;
   sources: ResearchSource[];
+  /** Authoritative source-to-fact attribution for every material fact. */
+  evidence: ResearchEvidence;
   quality: ResearchQuality;
   meta: CompanyResearchMeta;
 }

@@ -80,24 +80,75 @@ const candidateSchema = z.strictObject({
   sourceIds: z.array(z.string()),
 });
 
+/**
+ * An origin-only http(s) URL (scheme + host, no path/query/fragment). The public
+ * contract must never carry an exact page URL, so we reject anything that is not
+ * exactly its own origin. `new URL(...).origin` is available in both the server
+ * (final guard) and the browser (client validator).
+ */
+const originOnlyUrl = z
+  .string()
+  .min(1)
+  .max(2048)
+  .refine((value) => {
+    let parsed: URL;
+    try {
+      parsed = new URL(value);
+    } catch {
+      return false;
+    }
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return false;
+    // `origin` drops path/query/fragment; equality means the input was origin-only.
+    return value === parsed.origin;
+  }, "url must be origin-only (scheme + host, no path/query/fragment)");
+
 const sourceSchema = z.strictObject({
-  id: z.string(),
-  provider: z.enum(["krs", "company_website", "annual_report", "web"]),
+  id: z.string().min(1).max(200),
+  provider: z.enum(["krs", "openai_web_search"]),
   type: z.enum([
     "official_registry",
-    "first_party",
-    "financial_filing",
+    "official_company_website",
+    "official_company_document",
     "government",
-    "news",
-    "other",
+    "discovery_source",
   ]),
-  title: z.string(),
-  url: z.string().optional(),
-  domain: z.string().optional(),
+  authority: z.enum(["primary", "authoritative_secondary", "secondary"]),
+  url: z.union([originOnlyUrl, z.null()]),
+  domain: z.union([z.string().min(1).max(255), z.null()]),
   retrievedAt: z.string(),
-  publishedAt: z.string().optional(),
-  authority: z.enum(["primary", "secondary"]),
-  supports: z.array(z.string()),
+  publishedAt: z.union([z.string(), z.null()]),
+});
+
+const factEvidenceSchema = z.strictObject({
+  id: z.string().min(1).max(200),
+  target: z.strictObject({
+    path: z.string().min(1).max(200),
+    itemId: z.union([z.string().min(1).max(200), z.null()]),
+  }),
+  sourceIds: z
+    .array(z.string().min(1).max(200))
+    .min(1)
+    .refine((ids) => new Set(ids).size === ids.length, "sourceIds must be unique"),
+  support: z.enum(["direct", "corroborating"]),
+  derivation: z.enum(["registry", "extracted", "normalized", "synthesized", "derived"]),
+  confidence: z.number().min(0).max(1),
+  verifiedAt: z.iso.datetime(),
+});
+
+const evidenceSchema = z.strictObject({
+  facts: z.array(factEvidenceSchema),
+});
+
+const conflictSchema = z.strictObject({
+  code: z.string().min(1).max(100),
+  targetPath: z.string().min(1).max(200),
+  sourceIds: z.array(z.string().min(1).max(200)),
+  resolution: z.enum(["krs_preferred", "official_source_preferred", "unresolved"]),
+});
+
+const warningSchema = z.strictObject({
+  code: z.string().min(1).max(100),
+  targetPath: z.union([z.string().min(1).max(200), z.null()]),
 });
 
 const qualitySchema = z.strictObject({
@@ -107,8 +158,8 @@ const qualitySchema = z.strictObject({
   }),
   completenessScore: z.number(),
   missingFields: z.array(z.string()),
-  conflicts: z.array(z.string()),
-  warnings: z.array(z.string()),
+  conflicts: z.array(conflictSchema),
+  warnings: z.array(warningSchema),
   lastVerifiedAt: z.string().optional(),
 });
 
@@ -144,6 +195,7 @@ const completedSchema = z.strictObject({
   company: companyProfileSchema,
   expansionInputs: expansionInputsSchema,
   sources: z.array(sourceSchema),
+  evidence: evidenceSchema,
   quality: qualitySchema,
   meta: metaSchema,
 });

@@ -2,10 +2,10 @@ import type {
   CompanyCandidate,
   NeedsConfirmationResponse,
   ResearchSource,
+  ResearchSourceAuthority,
   ResearchSourceType,
 } from "../../../contracts/companyResearch.ts";
 import { createCandidateId } from "../identification/candidateId.ts";
-import { neutralSourceTitle } from "../identification/webSourceSecurity.ts";
 import { toResponseQuery } from "./toDashboardResponse.ts";
 import type { SafeDiscoveredSource } from "../identification/webSourceSecurity.ts";
 import type { ScoredCandidate } from "../identification/types.ts";
@@ -21,9 +21,16 @@ function fnv1a(input: string): string {
   return hash.toString(16).padStart(8, "0");
 }
 
+function isGovPl(hostname: string): boolean {
+  return hostname === "gov.pl" || hostname.endsWith(".gov.pl");
+}
+
 function webSourceType(hostname: string): ResearchSourceType {
-  if (hostname === "gov.pl" || hostname.endsWith(".gov.pl")) return "government";
-  return "other";
+  return isGovPl(hostname) ? "government" : "discovery_source";
+}
+
+function webSourceAuthority(hostname: string): ResearchSourceAuthority {
+  return isGovPl(hostname) ? "authoritative_secondary" : "secondary";
 }
 
 /** The official KRS provenance source for a specific candidate entity. */
@@ -32,28 +39,30 @@ export function buildKrsSourceFor(company: KrsCompany): ResearchSource {
     id: `src_krs_${company.krs}`,
     provider: "krs",
     type: "official_registry",
-    title: "Krajowy Rejestr Sądowy (odpis aktualny)",
-    retrievedAt: company.retrievedAt,
     authority: "primary",
-    supports: ["company.identity.legalName", "company.identity.identifiers.krs"],
+    url: null,
+    domain: null,
+    retrievedAt: company.retrievedAt,
+    publishedAt: null,
   };
 }
 
 /**
  * Maps a safe web source (origin + hostname only) to a public ResearchSource.
  * Never carries the full path, query, fragment, upstream title or page content.
+ * Discovery sources are NOT attributed to any legal fact — they exist only as
+ * provenance for the discovery step, so they carry no fact evidence.
  */
 export function buildWebSource(source: SafeDiscoveredSource, retrievedAt: string): ResearchSource {
   return {
     id: `src_web_${fnv1a(source.origin)}`,
-    provider: "web",
+    provider: "openai_web_search",
     type: webSourceType(source.hostname),
-    title: neutralSourceTitle(source.hostname),
+    authority: webSourceAuthority(source.hostname),
     url: source.origin,
     domain: source.hostname,
     retrievedAt,
-    authority: "secondary",
-    supports: ["candidate.discovery"],
+    publishedAt: null,
   };
 }
 

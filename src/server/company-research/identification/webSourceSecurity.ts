@@ -58,11 +58,3 @@ export function safeOriginFromUrl(rawUrl: unknown): SafeDiscoveredSource | null 
   // Rebuild the origin from scheme + host only (drops path/query/fragment).
   return { origin: `${url.protocol}//${hostname}`, hostname };
 }
-
-/**
- * Maps a validated source to a neutral, deterministic public title. The upstream
- * title/snippet is never copied (it may contain personal data).
- */
-export function neutralSourceTitle(hostname: string): string {
-  return `Źródło internetowe: ${hostname}`;
-}

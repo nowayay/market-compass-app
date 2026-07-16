@@ -2,17 +2,20 @@ import { companyResearchResponseSchema } from "../../contracts/companyResearchSc
 import type { CompanyResearchResponse } from "../../contracts/companyResearch.ts";
 import { CompanyResearchInternalError } from "./errors.ts";
 import { assertNoPersonalData } from "./privacy/assertNoPersonalData.ts";
+import { findResponseIntegrityViolation } from "./semanticResponseGuard.ts";
 
 /**
  * Final safety gate applied to EVERY domain response before it leaves the
- * server. Two independent layers over the *entire* payload (not just
- * `company`): the personal-data regression assertion, then strict schema
- * validation. Strict schemas + the allowlist remain the primary protection; the
- * assertion is defense-in-depth.
+ * server. Three independent layers over the *entire* payload (not just
+ * `company`): the personal-data regression assertion, strict (per-object) schema
+ * validation, then deterministic cross-field semantic validation (referential
+ * integrity + the origin-only source-security policy). Strict schemas + the
+ * allowlist remain the primary protection; the other layers are defense-in-depth.
  *
  * A failure here indicates a server-side regression (e.g. a mapper leaking a
- * personal field into `sources`/`warnings`/`expansionInputs`, or an off-contract
- * shape) and is surfaced as a generic internal error — never the raw payload.
+ * personal field into `sources`/`warnings`/`expansionInputs`, an off-contract
+ * shape, or an evidence entry pointing at a non-existent source) and is surfaced
+ * as a generic internal error — never the raw payload or the offending reason.
  */
 export function guardAndValidateResponse(
   response: CompanyResearchResponse,
@@ -28,5 +31,13 @@ export function guardAndValidateResponse(
   if (!parsed.success) {
     throw new CompanyResearchInternalError("Final response failed contract validation");
   }
+
+  // Cross-field semantic validation over the schema-validated payload. The
+  // reason is kept server-side only (it names ids/paths) — never returned.
+  const violation = findResponseIntegrityViolation(parsed.data);
+  if (violation !== null) {
+    throw new CompanyResearchInternalError(`Final response failed integrity check: ${violation}`);
+  }
+
   return parsed.data;
 }

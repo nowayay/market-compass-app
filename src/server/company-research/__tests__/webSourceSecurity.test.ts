@@ -1,9 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  neutralSourceTitle,
-  safeOriginFromUrl,
-} from "../identification/webSourceSecurity.ts";
+import { safeOriginFromUrl } from "../identification/webSourceSecurity.ts";
 
 test("accepts https and returns only origin + hostname", () => {
   assert.deepEqual(safeOriginFromUrl("https://example.com/path?q=1#frag"), {
@@ -90,8 +87,4 @@ test("rejects invalid / non-string URLs", () => {
   assert.equal(safeOriginFromUrl(""), null);
   assert.equal(safeOriginFromUrl(undefined), null);
   assert.equal(safeOriginFromUrl(123), null);
-});
-
-test("neutralSourceTitle is deterministic and content-free", () => {
-  assert.equal(neutralSourceTitle("example.com"), "Źródło internetowe: example.com");
 });
