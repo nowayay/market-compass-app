@@ -312,6 +312,10 @@ export type CompanyResearchErrorCode =
   | "INVALID_CANDIDATE_ID"
   | "CANDIDATE_NOT_FOUND"
   | "CANDIDATE_QUERY_MISMATCH";
+// NOTE: official domain-discovery error codes are intentionally NOT part of this
+// public union. They are internal (`DomainDiscoveryErrorCode` in
+// server/company-research/domain-discovery/errors.ts) until the flow is wired
+// into the public API with a deliberate mapping.
 
 /** Stable JSON error envelope for technical failures. */
 export interface CompanyResearchErrorResponse {

@@ -68,6 +68,8 @@ const NUMERIC_SAFE_KEYS: ReadonlySet<string> = new Set([
   "lastverifiedat", "researchedat", "registrationdate", "foundedyear",
   "completenessscore", "score", "confidence", "version", "primarycode",
   "secondarycodes", "code", "targetpath", "path", "resolution",
+  // Domain-discovery matched identifier signals (structured registry ids).
+  "matchedkrs", "matchednip", "matchedregon",
 ]);
 
 /**
@@ -77,9 +79,18 @@ const NUMERIC_SAFE_KEYS: ReadonlySet<string> = new Set([
  * ("response", "company", …) is irrelevant, while an arbitrary object such as
  * `contact.name` is NOT exempt.
  *
- * Contract paths (see src/contracts/companyResearch.ts):
+ * A legal company name may legitimately contain a person's first name and
+ * surname; on these paths the role-plus-name heuristic is NOT applied. Direct
+ * identifier protections (email, phone, PESEL, personal-profile URL) still run
+ * everywhere. The list is path-specific — an arbitrary field named `name` or
+ * `matchedLegalName` elsewhere is NOT exempt.
+ *
+ * Contract / internal paths:
  *  - company.identity.legalName / displayName / aliases[*]  (CompanyProfile)
  *  - candidates[*].legalName / displayName                  (CompanyCandidate)
+ *  - domainDiscoveryInput.legalName                         (discovery input)
+ *  - …signals.matchedLegalName                              (discovery candidate)
+ *  - domainDiscoverySignals[*].matchedLegalName             (discovery signals)
  */
 const LEGAL_NAME_PATH_RES: readonly RegExp[] = [
   /(?:^|\.)company\.identity\.legalName$/,
@@ -87,6 +98,11 @@ const LEGAL_NAME_PATH_RES: readonly RegExp[] = [
   /(?:^|\.)company\.identity\.aliases\[\d+\]$/,
   /(?:^|\.)candidates\[\d+\]\.legalName$/,
   /(?:^|\.)candidates\[\d+\]\.displayName$/,
+  // Official domain discovery — legal-entity-name fields (matched by their
+  // specific structural context, never a bare `name`/`matchedLegalName` key).
+  /(?:^|\.)domainDiscoveryInput\.legalName$/,
+  /(?:^|\.)signals\.matchedLegalName$/,
+  /(?:^|\.)domainDiscoverySignals\[\d+\]\.matchedLegalName$/,
 ];
 
 /** True only for an explicit approved legal-entity-name path. */
@@ -129,6 +145,9 @@ const KNOWN_PATH_KEYS: ReadonlySet<string> = new Set([
   "researchedAt", "version",
   // Internal KrsCompany / discovery
   "pkdPrimaryCode", "pkdSecondaryCodes", "pkdLabels", "registerType",
+  // Internal domain-discovery candidates
+  "origin", "signals", "sourceOrigins", "matchedLegalName", "matchedKrs",
+  "matchedNip", "matchedRegon", "matchedCity",
 ]);
 
 /**

@@ -145,6 +145,11 @@ export class CompanyIdentificationBusyError extends CompanyResearchError {
   }
 }
 
+// NOTE: official domain-discovery errors are INTERNAL and live in
+// `domain-discovery/errors.ts` (with their own `DomainDiscoveryErrorCode`). They
+// deliberately do NOT extend `CompanyResearchError`, so they are never mapped to
+// a public HTTP status until the flow is wired into the public API.
+
 /**
  * Maps a Company Research error code onto an HTTP status. Pure and side-effect
  * free so it can be unit-tested in isolation.
