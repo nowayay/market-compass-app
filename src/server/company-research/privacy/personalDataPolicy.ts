@@ -106,6 +106,8 @@ const LEGAL_NAME_PATH_RES: readonly RegExp[] = [
   /(?:^|\.)domainDiscoverySignals\[\d+\]\.matchedLegalName$/,
   // Official domain confirmation — legal name is a search-targeting hint only.
   /(?:^|\.)domainConfirmationInput\.legalName$/,
+  // Structured business research — legal name is a search-targeting hint only.
+  /(?:^|\.)businessResearchInput\.legalName$/,
 ];
 
 /** True only for an explicit approved legal-entity-name path. */
