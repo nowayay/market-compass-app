@@ -60,8 +60,13 @@ function lookupKey(path: string, itemId: string | null): string {
  * The union of source ids backing the material facts the description actually
  * rendered — nothing else. Deterministic, so the description evidence references
  * only its component facts' sources.
+ *
+ * Exported so a strict cross-stage result validator (e.g. an internal caller that
+ * re-derives the exact expected evidence set from a raw `CompanyProfileAssemblyInput`)
+ * can reuse this exact rule instead of duplicating it. Still an internal helper —
+ * not part of any public contract.
  */
-function descriptionComponentSourceIds(
+export function descriptionComponentSourceIds(
   description: DescriptionBuild,
   lookup: Map<string, string[]>,
 ): string[] {
@@ -84,8 +89,14 @@ function descriptionComponentSourceIds(
   return [...ids];
 }
 
-/** Derives the overall assembly status (see the type doc). */
-function deriveStatus(
+/**
+ * Derives the overall assembly status (see the type doc).
+ *
+ * Exported so a strict cross-stage result validator can recompute the exact
+ * expected status from the same two inputs and compare — without re-running
+ * (or duplicating) `assembleCompanyProfile` itself.
+ */
+export function deriveStatus(
   hasConfirmedWebsite: boolean,
   businessStatus: CompanyProfileAssemblyInput["businessResearch"]["status"],
 ): CompanyProfileAssemblyStatus {
@@ -95,8 +106,12 @@ function deriveStatus(
   return "partial";
 }
 
-/** Derives the deterministic, canonically ordered reason set. */
-function deriveReasons(
+/**
+ * Derives the deterministic, canonically ordered reason set.
+ *
+ * Exported for the same reason as `deriveStatus` above.
+ */
+export function deriveReasons(
   hasConfirmedWebsite: boolean,
   businessStatus: CompanyProfileAssemblyInput["businessResearch"]["status"],
   descriptionPresent: boolean,

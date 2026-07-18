@@ -94,9 +94,15 @@ export function notFoundResolution(): CompanyDomainResolutionResult {
   };
 }
 
-/** An unverified resolution result (discovery ran, nothing confirmed). */
+/**
+ * An unverified resolution result — confirmation ran on the sole probable
+ * candidate but could not independently verify it. Matches the real
+ * `resolveCompanyDomain` contract: the selected candidate always keeps the
+ * `probable` status the evaluation stage gave it (confirmation only changes
+ * the CONFIRMATION outcome, never the discovery/evaluation candidate status).
+ */
 export function unverifiedResolution(): CompanyDomainResolutionResult {
-  const candidate: EvaluatedDomainCandidate = { ...probableCandidate(), status: "unverified" };
+  const candidate: EvaluatedDomainCandidate = probableCandidate();
   return {
     status: "unverified",
     confirmedOrigin: null,
