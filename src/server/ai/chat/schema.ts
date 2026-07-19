@@ -7,6 +7,8 @@ const MAX_MESSAGES = 20;
 const MAX_MESSAGE_CHARS = 4000;
 /** Maximum combined characters across all (trimmed) messages. */
 const MAX_TOTAL_CHARS = 20000;
+/** Maximum characters for the optional bounded dashboard context. */
+const MAX_COMPANY_CONTEXT_CHARS = 4000;
 
 /**
  * A single chat turn. Only `user` and `assistant` roles are accepted — the
@@ -37,6 +39,18 @@ export const chatRequestSchema = z
       .array(messageSchema)
       .min(1, "At least one message is required.")
       .max(MAX_MESSAGES, `No more than ${MAX_MESSAGES} messages are allowed.`),
+    /**
+     * Optional, bounded, UNTRUSTED reference context: a small JSON summary of
+     * the user's own current MarketCompass dashboard (company profile +
+     * expansion analysis), supplied by the browser only when a dashboard
+     * exists. It is never treated as trusted server instructions — see
+     * `streamChatResponse.ts`.
+     */
+    companyContext: z
+      .string()
+      .trim()
+      .max(MAX_COMPANY_CONTEXT_CHARS, `companyContext must not exceed ${MAX_COMPANY_CONTEXT_CHARS} characters.`)
+      .optional(),
   })
   .refine(
     (data) => data.messages.reduce((total, message) => total + message.content.length, 0) <= MAX_TOTAL_CHARS,

@@ -311,7 +311,11 @@ export type CompanyResearchErrorCode =
   | "INVALID_IDENTIFICATION_RESPONSE"
   | "INVALID_CANDIDATE_ID"
   | "CANDIDATE_NOT_FOUND"
-  | "CANDIDATE_QUERY_MISMATCH";
+  | "CANDIDATE_QUERY_MISMATCH"
+  // Dashboard — AI expansion analysis stage.
+  | "EXPANSION_ANALYSIS_ERROR"
+  | "EXPANSION_ANALYSIS_TIMEOUT"
+  | "INVALID_EXPANSION_ANALYSIS_RESPONSE";
 // NOTE: official domain-discovery error codes are intentionally NOT part of this
 // public union. They are internal (`DomainDiscoveryErrorCode` in
 // server/company-research/domain-discovery/errors.ts) until the flow is wired

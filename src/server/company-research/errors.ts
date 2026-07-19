@@ -145,6 +145,30 @@ export class CompanyIdentificationBusyError extends CompanyResearchError {
   }
 }
 
+/** The AI expansion-analysis provider (OpenAI) failed. */
+export class ExpansionAnalysisError extends CompanyResearchError {
+  readonly code: CompanyResearchErrorCode = "EXPANSION_ANALYSIS_ERROR";
+  constructor(message: string, cause?: unknown) {
+    super(message, "Analiza ekspansji AI jest chwilowo niedostępna. Spróbuj ponownie.", cause);
+  }
+}
+
+/** The AI expansion-analysis provider timed out. */
+export class ExpansionAnalysisTimeoutError extends CompanyResearchError {
+  readonly code: CompanyResearchErrorCode = "EXPANSION_ANALYSIS_TIMEOUT";
+  constructor(message = "Expansion analysis provider timed out", cause?: unknown) {
+    super(message, "Przekroczono czas analizy ekspansji. Spróbuj ponownie.", cause);
+  }
+}
+
+/** The AI expansion-analysis provider returned output that failed validation. */
+export class InvalidExpansionAnalysisResponseError extends CompanyResearchError {
+  readonly code: CompanyResearchErrorCode = "INVALID_EXPANSION_ANALYSIS_RESPONSE";
+  constructor(message = "Invalid expansion analysis response", cause?: unknown) {
+    super(message, "Nie udało się wygenerować analizy ekspansji. Spróbuj ponownie.", cause);
+  }
+}
+
 // NOTE: official domain-discovery errors are INTERNAL and live in
 // `domain-discovery/errors.ts` (with their own `DomainDiscoveryErrorCode`). They
 // deliberately do NOT extend `CompanyResearchError`, so they are never mapped to
@@ -173,11 +197,14 @@ export function errorHttpStatus(code: CompanyResearchErrorCode): number {
     case "COMPANY_RESEARCH_PROVIDER_ERROR":
     case "COMPANY_IDENTIFICATION_ERROR":
     case "INVALID_IDENTIFICATION_RESPONSE":
+    case "EXPANSION_ANALYSIS_ERROR":
+    case "INVALID_EXPANSION_ANALYSIS_RESPONSE":
       return 502;
     case "COMPANY_RESEARCH_TIMEOUT":
     case "COMPANY_IDENTIFICATION_TIMEOUT":
     case "COMPANY_IDENTIFICATION_DISABLED":
     case "COMPANY_IDENTIFICATION_BUSY":
+    case "EXPANSION_ANALYSIS_TIMEOUT":
       return 503;
     case "COMPANY_RESEARCH_CONFIGURATION_ERROR":
       return 500;

@@ -1,8 +1,6 @@
-import type {
-  CompanyResearchErrorCode,
-  CompanyResearchResponse,
-} from "@/src/contracts/companyResearch";
-import { companyResearchResponseSchema } from "@/src/contracts/companyResearchSchema";
+import type { CompanyResearchErrorCode } from "@/src/contracts/companyResearch";
+import type { CompanyDashboardResponse } from "@/src/contracts/companyDashboard";
+import { companyDashboardResponseSchema } from "@/src/contracts/companyDashboardSchema";
 
 /**
  * Thin browser client for POST /api/company-research.
@@ -52,7 +50,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export async function researchCompany(
   input: CompanyResearchRequestInput,
   signal?: AbortSignal,
-): Promise<CompanyResearchResponse> {
+): Promise<CompanyDashboardResponse> {
   let response: Response;
   try {
     response = await fetch("/api/company-research", {
@@ -93,9 +91,9 @@ export async function researchCompany(
 
   // Success: validate the payload against the shared contract schema instead of
   // trusting the server. Never surface or log the raw payload on mismatch.
-  const validated = companyResearchResponseSchema.safeParse(payload);
+  const validated = companyDashboardResponseSchema.safeParse(payload);
   if (!validated.success) {
     throw new CompanyResearchClientError(GENERIC_MESSAGE, "INVALID_SERVER_RESPONSE");
   }
-  return validated.data as CompanyResearchResponse;
+  return validated.data as CompanyDashboardResponse;
 }

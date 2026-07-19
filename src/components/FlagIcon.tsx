@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 
-// Country `id`s are ISO 3166-1 alpha-2 except 'uk', which flagcdn expects as 'gb'.
+// ISO 3166-1 alpha-2 codes flagcdn expects spelled differently.
 const ISO2_OVERRIDES: Record<string, string> = { uk: 'gb' };
 
 export default function FlagIcon({
@@ -8,11 +8,13 @@ export default function FlagIcon({
   size = 16,
   style,
 }: {
+  /** ISO 3166-1 alpha-2 country code (case-insensitive). */
   countryId: string;
   size?: number;
   style?: CSSProperties;
 }) {
-  const code = ISO2_OVERRIDES[countryId] || countryId;
+  const normalized = countryId.toLowerCase();
+  const code = ISO2_OVERRIDES[normalized] || normalized;
   const height = Math.round(size * 0.75);
   return (
     // eslint-disable-next-line @next/next/no-img-element -- fixed-size flag sprite from flagcdn.com, not an optimizable local/content image

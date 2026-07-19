@@ -273,13 +273,14 @@ export async function streamChat(
   messages: ChatRequestMessage[],
   callbacks: StreamChatCallbacks,
   signal: AbortSignal,
+  companyContext?: string,
 ): Promise<void> {
   let response: Response;
   try {
     response = await fetch("/api/ai/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages }),
+      body: JSON.stringify(companyContext ? { messages, companyContext } : { messages }),
       signal,
     });
   } catch (error) {

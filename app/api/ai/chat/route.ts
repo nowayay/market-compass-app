@@ -82,7 +82,7 @@ export async function POST(request: Request): Promise<Response> {
   // and upstream-open failures become normal JSON error responses (C / D).
   let eventStream: AsyncIterable<MarketCompassStreamEvent>;
   try {
-    eventStream = await createChatEventStream(parsed.data.messages, controller.signal);
+    eventStream = await createChatEventStream(parsed.data.messages, controller.signal, parsed.data.companyContext);
   } catch (error) {
     request.signal.removeEventListener("abort", onRequestAbort);
     if (controller.signal.aborted) {

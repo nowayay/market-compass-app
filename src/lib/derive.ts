@@ -1,77 +1,61 @@
-// Pure helpers that turn raw scoreCountry() results into display-ready data
-// (tier labels/colors, map fill, ranking stars/dots). Mirrors the design
-// prototype's renderVals() decoration logic.
-
-import type { DecoratedResult, ScoredResult, Swot, SwotCat } from "../types";
+// Pure helpers that turn a ranked country / dashboard result into display-ready
+// data (tier labels/colors, map fill, a bounded chat context string).
+import type { DashboardCompletedResponse, DecoratedCountry, RankedCountry } from "../types";
 
 export function tierOf(score: number) {
-  if (score >= 78) return { label: 'Bardzo wysoki', color: '#16A34A', bg: '#DCFCE7' };
-  if (score >= 62) return { label: 'Wysoki', color: '#4D9E1F', bg: '#ECFCCB' };
-  if (score >= 45) return { label: 'Średni', color: '#D97706', bg: '#FEF3C7' };
-  return { label: 'Bardzo niski', color: '#DC2626', bg: '#FEE2E2' };
+  if (score >= 78) return { label: "Bardzo wysoki", color: "#16A34A", bg: "#DCFCE7" };
+  if (score >= 62) return { label: "Wysoki", color: "#4D9E1F", bg: "#ECFCCB" };
+  if (score >= 45) return { label: "Średni", color: "#D97706", bg: "#FEF3C7" };
+  return { label: "Bardzo niski", color: "#DC2626", bg: "#FEE2E2" };
 }
 
 export function mapFillOf(score: number) {
-  if (score >= 78) return '#16A34A';
-  if (score >= 62) return '#7CB342';
-  if (score >= 45) return '#F59E0B';
-  return '#EF4444';
+  if (score >= 78) return "#16A34A";
+  if (score >= 62) return "#7CB342";
+  if (score >= 45) return "#F59E0B";
+  return "#EF4444";
 }
 
-const riskShortMap: Record<string, { label: string; bg: string; color: string }> = {
-  Niskie: { label: 'Niskie', bg: '#DCFCE7', color: '#15803D' },
-  Średnie: { label: 'Średnie', bg: '#FEF3C7', color: '#B45309' },
-  Wysokie: { label: 'Wysokie', bg: '#FEE2E2', color: '#DC2626' },
-};
-
-export function decorateResult(r: ScoredResult, onOpen: (id: string) => void): DecoratedResult {
-  const t = tierOf(r.score);
-  const rk = riskShortMap[r.risk] || { label: '—', bg: '#F3F4F6', color: '#6B7280' };
-  const nStars = Math.max(0, Math.min(5, Math.round(r.marketPotential / 20)));
-  const nDots = Math.max(0, Math.min(5, Math.round(r.profitability / 20)));
-  const stars = Array.from({ length: 5 }, (_, i) => ({ ch: i < nStars ? '★' : '☆', col: i < nStars ? '#16A34A' : '#D1D5DB' }));
-  const dots = Array.from({ length: 5 }, (_, i) => ({ ch: i < nDots ? '●' : '○', col: i < nDots ? '#16A34A' : '#D1D5DB' }));
+/** Decorates one AI-ranked country with its display rank + tier colors. */
+export function decorateCountry(country: RankedCountry, index: number): DecoratedCountry {
+  const t = tierOf(country.score);
   return {
-    id: r.country.id, name: r.country.name, country: r.country,
-    score: r.score, band: r.band, risk: r.risk,
-    marketPotential: r.marketPotential, profitability: r.profitability, fit: r.fit,
-    investmentLevel: r.investmentLevel, investmentRange: r.investmentRange,
-    strategy: r.strategy, pros: r.pros, cons: r.cons, risks: r.risks, justification: r.justification,
-    tierLabel: t.label, tierColor: t.color, tierBg: t.bg, mapFill: mapFillOf(r.score),
-    riskShort: rk.label, riskBg: rk.bg, riskColor: rk.color,
-    stars, dots,
-    markerSize: r.band === 'recommended' ? 16 : r.band === 'medium' ? 13 : 11,
-    ringGradient: `conic-gradient(${mapFillOf(r.score)} ${r.score}%, #EBECEF 0)`,
-    onOpen: () => onOpen(r.country.id),
+    ...country,
+    rank: index + 1,
+    tierLabel: t.label,
+    tierColor: t.color,
+    tierBg: t.bg,
+    mapFill: mapFillOf(country.score),
   };
 }
 
-export const SWOT_META: Record<keyof Swot, { letter: string; label: string; color: string }> = {
-  strengths: { letter: 'S', label: 'Strengths', color: '#16A34A' },
-  weaknesses: { letter: 'W', label: 'Weaknesses', color: '#F59E0B' },
-  opportunities: { letter: 'O', label: 'Opportunities', color: '#16A34A' },
-  threats: { letter: 'T', label: 'Threats', color: '#EF4444' },
-};
+/** Maximum length of the bounded dashboard context sent to the chatbot. */
+const MAX_CHAT_CONTEXT_CHARS = 4000;
 
-const PRIORITY_COLORS: Record<string, { bg: string; color: string }> = {
-  Wysoki: { bg: '#FEE2E2', color: '#DC2626' },
-  Średni: { bg: '#FEF3C7', color: '#B45309' },
-  Niski: { bg: '#DCFCE7', color: '#15803D' },
-};
-
-export function buildSwotCats(swot: Swot | null): SwotCat[] {
-  if (!swot) return [];
-  return (Object.keys(SWOT_META) as (keyof Swot)[]).map((k) => {
-    const items = swot[k];
-    const pc = PRIORITY_COLORS[items[0].priority] || { bg: '#F3F4F6', color: '#6B7280' };
-    return {
-      key: k,
-      ...SWOT_META[k],
-      bullets: items.map((it) => it.title),
-      priority: items[0].priority,
-      prioBg: pc.bg,
-      prioColor: pc.color,
-      actions: items[0].actions,
-    };
-  });
+/**
+ * Builds a small, bounded JSON summary of the current dashboard (company
+ * profile + expansion analysis) to send as OPTIONAL chat context. Carries no
+ * more than what is already shown on the dashboard, and is capped in length —
+ * the server treats it as untrusted reference data, never as instructions.
+ */
+export function buildChatCompanyContext(dashboard: DashboardCompletedResponse): string {
+  const summary = {
+    company: {
+      legalName: dashboard.company.legalName,
+      industry: dashboard.company.industry,
+      description: dashboard.company.description,
+      productsServices: dashboard.company.productsServices,
+      customerSegments: dashboard.company.customerSegments,
+      operatingMarkets: dashboard.company.operatingMarkets,
+    },
+    swot: dashboard.expansion.swot,
+    rankedCountries: dashboard.expansion.rankedCountries.map((c) => ({
+      countryName: c.countryName,
+      countryCode: c.countryCode,
+      score: c.score,
+      summary: c.summary,
+    })),
+  };
+  const json = JSON.stringify(summary);
+  return json.length > MAX_CHAT_CONTEXT_CHARS ? json.slice(0, MAX_CHAT_CONTEXT_CHARS) : json;
 }

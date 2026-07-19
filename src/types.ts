@@ -1,87 +1,28 @@
-export interface Country {
-  id: string;
-  flag: string;
-  iso3: string;
-  name: string;
-  continent: string;
-  x: number;
-  y: number;
-  gdp: number;
-  gdpPc: number;
-  inflation: number;
-  tax: number;
-  stability: number;
-  corruption: number;
-  digital: number;
-  internet: number;
-  unemployment: number;
-  growth: number;
-  marketSize: number;
-  competition: number;
-  laborCost: number;
-  tariff: number;
-  infra: number;
-  trade: string;
-}
+import type { CompanyCandidate } from "./contracts/companyResearch";
+import type { DashboardCompletedResponse, RankedCountry } from "./contracts/companyDashboard";
 
-export interface Company {
+export type {
+  CompanyDashboardResponse,
+  DashboardCompanyInfo,
+  DashboardCompletedResponse,
+  ExpansionAnalysis,
+  ExpansionSwot,
+  RankedCountry,
+} from "./contracts/companyDashboard";
+export type { CompanyCandidate } from "./contracts/companyResearch";
+
+/** The app's top-level screens. No multi-profile management in this MVP. */
+export type Screen = "form" | "confirm" | "loading" | "dashboard";
+
+/** Raw (string) values bound to the search form's inputs. */
+export interface FormValues {
   name: string;
-  industry: string;
-  country: string;
   foundedYear: string;
-  employees: string;
-  products: string;
-  customerType: string;
-  annualRevenue: string;
-  expansionBudget: string;
-  regions: string[];
-  riskLevel: string;
-  goal: string;
-  krs?: string;
-  aiSourced?: boolean;
+  krs: string;
 }
 
-export interface Profile {
-  id: string;
-  name: string;
-  avatarColor: string;
-  lastActive: string;
-  hasAnalysis: boolean;
-  company: Company | null;
-}
-
-export type Band = "recommended" | "medium" | "avoid";
-
-export interface ScoredResult {
-  country: Country;
-  score: number;
-  band: Band;
-  risk: string;
-  marketPotential: number;
-  profitability: number;
-  fit: number;
-  investmentLevel: string;
-  investmentRange: string;
-  strategy: string;
-  pros: string[];
-  cons: string[];
-  risks: string[];
-  justification: string;
-}
-
-export interface SwotItem {
-  title: string;
-  priority: string;
-  desc: string;
-  justification: string;
-  actions: string;
-}
-
-export interface Swot {
-  strengths: SwotItem[];
-  weaknesses: SwotItem[];
-  opportunities: SwotItem[];
-  threats: SwotItem[];
+export function emptyFormValues(): FormValues {
+  return { name: "", foundedYear: "", krs: "" };
 }
 
 export interface ChatMessage {
@@ -89,87 +30,43 @@ export interface ChatMessage {
   text: string;
 }
 
+/** A raw world-atlas country outline (SVG path + its ISO alpha-3 id). */
 export interface WorldFeature {
   iso3: string;
   d: string;
 }
 
-export interface MapFeature {
+/** A world-atlas outline decorated for rendering (fill color, click target). */
+export interface MapCountryFeature {
   iso3: string;
   d: string;
   fill: string;
   cursor: string;
-  onClick?: () => void;
+  /** The matched ranked country's code, or null when this outline is unranked. */
+  countryCode: string | null;
 }
 
-export interface DecoratedResult {
-  id: string;
-  name: string;
-  country: Country;
-  score: number;
-  band: Band;
-  risk: string;
-  marketPotential: number;
-  profitability: number;
-  fit: number;
-  investmentLevel: string;
-  investmentRange: string;
-  strategy: string;
-  pros: string[];
-  cons: string[];
-  risks: string[];
-  justification: string;
+/** A ranked country decorated with display-ready tier/color values. */
+export interface DecoratedCountry extends RankedCountry {
+  rank: number;
   tierLabel: string;
   tierColor: string;
   tierBg: string;
   mapFill: string;
-  riskShort: string;
-  riskBg: string;
-  riskColor: string;
-  stars: { ch: string; col: string }[];
-  dots: { ch: string; col: string }[];
-  markerSize: number;
-  ringGradient: string;
-  onOpen: () => void;
 }
-
-export interface SwotCat {
-  key: string;
-  letter: string;
-  label: string;
-  color: string;
-  bullets: string[];
-  priority: string;
-  prioBg: string;
-  prioColor: string;
-  actions: string;
-}
-
-export type Screen = "profiles" | "form" | "analyzing" | "dashboard";
 
 export interface AppState {
   screen: Screen;
-  profiles: Profile[];
-  activeProfileId: string | null;
-  company: Company;
-  results: ScoredResult[];
-  swot: Swot | null;
-  companyScore: number;
-  selectedCountryId: string | null;
-  newProfileOpen: boolean;
-  newProfileName: string;
-  renamingId: string | null;
-  renameValue: string;
-  menuOpenId: string | null;
-  deleteConfirmId: string | null;
-  nameMissing: boolean;
-  analyzeStep: number;
+  form: FormValues;
+  formError: string | null;
+  apiError: string | null;
+  candidates: CompanyCandidate[];
+  dashboard: DashboardCompletedResponse | null;
+  selectedCountryCode: string | null;
   showAllRanking: boolean;
-  mapZoom: number;
   mapFull: boolean;
   mapReady: boolean;
   worldFeatures: WorldFeature[];
-  profileMenuOpen: boolean;
   chatOpen: boolean;
   chatMessages: ChatMessage[];
   chatInput: string;

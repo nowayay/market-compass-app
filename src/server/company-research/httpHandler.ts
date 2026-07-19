@@ -3,6 +3,8 @@ import type {
   CompanyResearchErrorResponse,
 } from "../../contracts/companyResearch.ts";
 import { companyResearchRequestSchema } from "./schema.ts";
+import type { CompanyDashboardDeps } from "./dashboard/researchCompanyDashboard.ts";
+import { researchCompanyDashboard } from "./dashboard/researchCompanyDashboard.ts";
 import {
   CompanyResearchError,
   CompanyResearchProviderError,
@@ -144,6 +146,109 @@ export async function handleCompanyResearch(
 
     // Unknown/unexpected failure — never expose internals (incl. a possible
     // personal-data regression caught by the guard, or a caller abort).
+    logResearch({
+      requestId,
+      status: "error",
+      durationMs: Date.now() - startedAt,
+      provider: deps.krsProvider.name,
+      hasKrs,
+      errorCode: "COMPANY_RESEARCH_INTERNAL_ERROR",
+    });
+    return errorResponse(
+      500,
+      "COMPANY_RESEARCH_INTERNAL_ERROR",
+      "Wystąpił nieoczekiwany błąd. Spróbuj ponownie.",
+      requestId,
+    );
+  }
+}
+
+/**
+ * Core HTTP logic for POST /api/company-research's Dashboard-oriented flow.
+ * Mirrors `handleCompanyResearch`'s HTTP-layer plumbing exactly (body-size
+ * cap, JSON parsing, request validation, abort handling, safe error mapping)
+ * but delegates the actual research to `researchCompanyDashboard` and returns
+ * its dashboard-shaped response. The Next route supplies the production
+ * providers plus the web-research and expansion-analysis dependencies.
+ */
+export async function handleCompanyResearchDashboard(
+  request: Request,
+  deps: CompanyDashboardDeps,
+): Promise<Response> {
+  const requestId = crypto.randomUUID();
+  const startedAt = Date.now();
+
+  let text: string;
+  try {
+    text = await readRequestBodyText(request, MAX_BODY_BYTES);
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) {
+      return errorResponse(413, error.code, error.publicMessage, requestId);
+    }
+    if (request.signal.aborted) {
+      return new Response(null, { status: 499 });
+    }
+    return errorResponse(
+      500,
+      "COMPANY_RESEARCH_INTERNAL_ERROR",
+      "Wystąpił nieoczekiwany błąd. Spróbuj ponownie.",
+      requestId,
+    );
+  }
+
+  let body: unknown;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    return errorResponse(400, "INVALID_JSON", "Nieprawidłowy format żądania.", requestId);
+  }
+
+  const parsed = companyResearchRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return errorResponse(400, "INVALID_REQUEST", "Nieprawidłowe zapytanie.", requestId);
+  }
+  const hasKrs = parsed.data.query.krs !== undefined;
+
+  try {
+    const result = await researchCompanyDashboard(parsed.data, deps, {
+      requestId,
+      signal: request.signal,
+    });
+    logResearch({
+      requestId,
+      status: result.status,
+      durationMs: Date.now() - startedAt,
+      provider: deps.krsProvider.name,
+      hasKrs,
+    });
+    return jsonResponse(200, result);
+  } catch (error) {
+    const isAbort =
+      request.signal.aborted ||
+      (typeof error === "object" && error !== null && (error as { name?: unknown }).name === "AbortError");
+    if (isAbort) {
+      return new Response(null, { status: 499 });
+    }
+
+    if (error instanceof CompanyResearchError) {
+      const status =
+        error instanceof CompanyResearchProviderError
+          ? providerHttpStatus(error.status)
+          : errorHttpStatus(error.code);
+      logResearch({
+        requestId,
+        status: "error",
+        durationMs: Date.now() - startedAt,
+        provider: deps.krsProvider.name,
+        hasKrs,
+        errorCode: error.code,
+      });
+      return errorResponse(status, error.code, error.publicMessage, requestId);
+    }
+
+    // Any other failure — including an internal web-research/business-research/
+    // profile-assembly/expansion-analysis error that is not itself a public
+    // CompanyResearchError — is never exposed; it becomes a generic safe 500.
     logResearch({
       requestId,
       status: "error",
