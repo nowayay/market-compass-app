@@ -1,6 +1,6 @@
 /**
  * Focused MVP tests for the expansion-analysis Structured Output parser:
- * the expansion result schema shape, the "exactly 5 distinct countries"
+ * the expansion result schema shape, the "exactly 15 distinct countries"
  * invariant, sort-by-score enforcement, and the SWOT bullet-count bounds.
  */
 import { test } from "node:test";
@@ -8,6 +8,8 @@ import assert from "node:assert/strict";
 import { parseExpansionAnalysisOutput } from "../expansion-analysis/schema.ts";
 import { InvalidExpansionAnalysisResponseError } from "../errors.ts";
 import { iso2ToIso3 } from "../../../data/iso2to3.ts";
+
+const FIFTEEN_CODES = ["DE", "FR", "US", "GB", "NL", "PL", "BR", "ES", "IT", "SE", "CZ", "AT", "CH", "CA", "JP"];
 
 function validSwot() {
   return {
@@ -29,38 +31,38 @@ function validCountry(countryCode: string, score: number) {
   };
 }
 
-function validOutput(scores: number[] = [90, 80, 70, 60, 50]) {
+function validOutput(scores: number[] = [95, 90, 85, 80, 75, 70, 65, 60, 55, 50, 45, 40, 35, 30, 25]) {
   return {
     swot: validSwot(),
-    rankedCountries: ["DE", "FR", "US", "GB", "NL"].map((code, i) => validCountry(code, scores[i])),
+    rankedCountries: FIFTEEN_CODES.map((code, i) => validCountry(code, scores[i])),
   };
 }
 
 test("(expansion schema) a genuinely valid output parses into the expected shape", () => {
   const result = parseExpansionAnalysisOutput(JSON.stringify(validOutput()));
-  assert.equal(result.rankedCountries.length, 5);
+  assert.equal(result.rankedCountries.length, 15);
   assert.deepEqual(Object.keys(result.swot).sort(), ["opportunities", "strengths", "threats", "weaknesses"]);
   assert.deepEqual(
     result.rankedCountries.map((c) => c.countryCode),
-    ["DE", "FR", "US", "GB", "NL"],
+    FIFTEEN_CODES,
   );
 });
 
-test("(expansion schema) exactly 5 distinct countries is enforced — fewer than 5 is rejected", () => {
+test("(expansion schema) exactly 15 distinct countries is enforced — fewer than 15 is rejected", () => {
   const bad = validOutput();
-  bad.rankedCountries = bad.rankedCountries.slice(0, 4);
+  bad.rankedCountries = bad.rankedCountries.slice(0, 14);
   assert.throws(() => parseExpansionAnalysisOutput(bad), InvalidExpansionAnalysisResponseError);
 });
 
-test("(expansion schema) more than 5 countries is rejected", () => {
+test("(expansion schema) more than 15 countries is rejected", () => {
   const bad = validOutput();
-  bad.rankedCountries.push(validCountry("PL", 40));
+  bad.rankedCountries.push(validCountry("MX", 20));
   assert.throws(() => parseExpansionAnalysisOutput(bad), InvalidExpansionAnalysisResponseError);
 });
 
 test("(expansion schema) a duplicate country code is rejected", () => {
   const bad = validOutput();
-  bad.rankedCountries[4] = { ...bad.rankedCountries[4], countryCode: bad.rankedCountries[0].countryCode };
+  bad.rankedCountries[14] = { ...bad.rankedCountries[14], countryCode: bad.rankedCountries[0].countryCode };
   assert.throws(() => parseExpansionAnalysisOutput(bad), InvalidExpansionAnalysisResponseError);
 });
 
@@ -82,16 +84,17 @@ test("(expansion schema) a two-letter code that is not a real supported country 
   }
 });
 
-test("(expansion schema) five real supported country codes are accepted", () => {
+test("(expansion schema) fifteen real supported country codes are accepted", () => {
+  const codes = ["PL", "DE", "FR", "US", "BR", "GB", "NL", "ES", "IT", "SE", "CZ", "AT", "CH", "CA", "JP"];
   const result = parseExpansionAnalysisOutput(
     JSON.stringify({
       swot: validSwot(),
-      rankedCountries: ["PL", "DE", "FR", "US", "BR"].map((code, i) => validCountry(code, 90 - i * 10)),
+      rankedCountries: codes.map((code, i) => validCountry(code, 95 - i * 5)),
     }),
   );
   assert.deepEqual(
     result.rankedCountries.map((c) => c.countryCode).sort(),
-    ["BR", "DE", "FR", "PL", "US"],
+    [...codes].sort(),
   );
 });
 
@@ -103,13 +106,12 @@ test("(expansion schema) every accepted country code maps to an alpha-3 atlas co
 });
 
 test("(expansion schema) countries are always returned sorted by score descending, regardless of input order, without changing score values", () => {
-  const unsorted = validOutput([10, 90, 50, 30, 70]); // DE=10, FR=90, US=50, GB=30, NL=70
+  const unsorted = validOutput([10, 90, 50, 30, 70, 20, 80, 40, 60, 5, 95, 15, 85, 45, 55]);
   const result = parseExpansionAnalysisOutput(unsorted);
   const scores = result.rankedCountries.map((c) => c.score);
   const sorted = [...scores].sort((a, b) => b - a);
   assert.deepEqual(scores, sorted);
-  assert.deepEqual(scores, [90, 70, 50, 30, 10]);
-  assert.equal(result.rankedCountries[0].countryCode, "FR");
+  assert.equal(result.rankedCountries[0].countryCode, "CZ"); // score 95 in the unsorted input above
 });
 
 test("(expansion schema) a score below zero is rejected, never clamped", () => {

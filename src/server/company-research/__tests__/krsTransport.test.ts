@@ -68,6 +68,28 @@ test("404 resolves to null (not found)", async () => {
   assert.equal(await provider.fetchByKrs("0000123456"), null);
 });
 
+// Regression test: real-world KRS numbers for historical/deregistered entities
+// (observed via a live name-only search for "Techland") resolve to HTTP 204
+// (an "ok" status, per fetch's 2xx range) with an EMPTY body — never a 404.
+// This used to crash `response.json()` on the empty body and throw a
+// CompanyResearchProviderError (→ HTTP 502), aborting the ENTIRE name search
+// even when another discovered candidate was perfectly valid.
+test("204 (ok status, empty body) resolves to null — not a malformed-JSON provider error", async () => {
+  const provider = createKrsTransport({
+    fetchImpl: mockFetch(async () => new Response(null, { status: 204 })),
+    timeoutMs: 5000,
+  });
+  assert.equal(await provider.fetchByKrs("0000123456"), null);
+});
+
+test("a 200 status with a whitespace-only body also resolves to null", async () => {
+  const provider = createKrsTransport({
+    fetchImpl: mockFetch(async () => new Response("   \n", { status: 200 })),
+    timeoutMs: 5000,
+  });
+  assert.equal(await provider.fetchByKrs("0000123456"), null);
+});
+
 test("HTTP 500 becomes a provider error with the status", async () => {
   const provider = createKrsTransport({
     fetchImpl: mockFetch(async () => new Response("upstream error body", { status: 500 })),

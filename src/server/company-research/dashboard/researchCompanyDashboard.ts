@@ -3,8 +3,11 @@ import type {
   DashboardCompanyInfo,
 } from "../../../contracts/companyDashboard.ts";
 import { buildSkippedResult } from "../business-research/buildBusinessResult.ts";
+import { enrichCompanyProfile } from "../enrichment/enrichCompanyProfile.ts";
+import type { CompanyEnrichmentProvider } from "../enrichment/types.ts";
 import { CompanyResearchInternalError } from "../errors.ts";
 import { buildExpansionAnalysisInput } from "../expansion-analysis/buildExpansionAnalysisInput.ts";
+import { logPipelineStage, stageErrorReasonCode } from "../logging/pipelineStageLog.ts";
 import type { ExpansionAnalysisProvider } from "../expansion-analysis/types.ts";
 import { assembleCompanyProfile } from "../profile-assembly/assembleCompanyProfile.ts";
 import { guardAndValidateDashboardResponse } from "./dashboardResponseGuard.ts";
@@ -20,6 +23,7 @@ import type { CompanyProfile } from "../../../contracts/companyResearch.ts";
 export interface CompanyDashboardDeps extends CompanyResearchDeps {
   webResearchDeps: CompanyWebResearchDeps;
   expansionAnalysisProvider: ExpansionAnalysisProvider;
+  enrichmentProvider: CompanyEnrichmentProvider;
 }
 
 /**
@@ -58,18 +62,20 @@ function isWebResearchUnavailable(error: unknown): boolean {
 }
 
 /**
- * Maps the assembled, web-enriched `CompanyProfile` onto the flat dashboard
- * company-info shape. `foundedYear` is the user-supplied identification hint
- * echoed back from the query — never a verified registry fact (KRS carries no
- * founding date; see `mappers/toDashboardResponse.buildCompanyProfile`).
+ * Maps the assembled, web-enriched (and possibly fallback-enriched)
+ * `CompanyProfile` onto the flat dashboard company-info shape. `foundedYear`
+ * prefers a real fact discovered on the profile (KRS never carries one; the
+ * enrichment fallback may) and otherwise falls back to the user-supplied
+ * identification hint echoed from the query — never a verified registry fact
+ * (see `mappers/toDashboardResponse.buildCompanyProfile`).
  */
-function toDashboardCompanyInfo(profile: CompanyProfile, foundedYear: number | undefined): DashboardCompanyInfo {
+function toDashboardCompanyInfo(profile: CompanyProfile, foundedYearHint: number | undefined): DashboardCompanyInfo {
   return {
     legalName: profile.identity.legalName,
     krs: profile.identity.identifiers.krs,
     nip: profile.identity.identifiers.nip,
     regon: profile.identity.identifiers.regon,
-    foundedYear,
+    foundedYear: profile.identity.foundedYear ?? foundedYearHint,
     website: profile.website.url,
     industry: profile.industry.description ?? profile.industry.labels[0],
     description: profile.business.description,
@@ -93,9 +99,15 @@ async function assembleWebEnrichedProfile(
   deps: CompanyWebResearchDeps,
 ) {
   try {
-    return await orchestrateCompanyWebResearch(request, deps);
+    const result = await orchestrateCompanyWebResearch(request, deps);
+    logPipelineStage("web-research", "completed");
+    return result;
   } catch (error) {
-    if (!isWebResearchUnavailable(error)) throw error;
+    if (!isWebResearchUnavailable(error)) {
+      logPipelineStage("web-research", "error", stageErrorReasonCode(error));
+      throw error;
+    }
+    logPipelineStage("web-research", "fallback", stageErrorReasonCode(error));
     const domainResolution: CompanyDomainResolutionResult = {
       status: "not_found",
       confirmedOrigin: null,
@@ -125,7 +137,7 @@ async function assembleWebEnrichedProfile(
  * runs the internal `orchestrateCompanyWebResearch` pipeline to enrich the
  * profile (confirmed website + structured business facts, when available),
  * and makes ONE structured AI call to produce the expansion analysis (SWOT +
- * a 5-country ranking).
+ * a 15-country ranking).
  *
  * Preserves the same three non-error outcomes as `researchCompany` — a
  * `needs_confirmation`/`not_found` result is passed straight through
@@ -181,14 +193,33 @@ export async function researchCompanyDashboard(
     deps.webResearchDeps,
   );
 
-  const expansionInput = buildExpansionAnalysisInput(webResult.profileAssembly.profile);
-  const expansion = await deps.expansionAnalysisProvider.analyze(expansionInput, { signal: ctx.signal });
+  // Optional best-effort fallback: when the assembled profile is legal-only
+  // (or otherwise missing the important business facts), ONE structured
+  // OpenAI web-search call fills in what it can. On any failure it gracefully
+  // returns the original assembled profile unchanged (see `enrichCompanyProfile`).
+  const enrichedProfile = await enrichCompanyProfile(
+    { assembly: webResult.profileAssembly, company: krsCompany, foundedYearHint: response.query.foundedYear },
+    { provider: deps.enrichmentProvider },
+    { signal: ctx.signal },
+  );
+
+  const expansionInput = buildExpansionAnalysisInput(enrichedProfile);
+  let expansion;
+  try {
+    expansion = await deps.expansionAnalysisProvider.analyze(expansionInput, { signal: ctx.signal });
+    logPipelineStage("expansion-analysis", "completed");
+  } catch (error) {
+    // A required-stage failure — logged, but never hidden: it still
+    // propagates unchanged (see httpHandler's typed-error mapping).
+    logPipelineStage("expansion-analysis", "error", stageErrorReasonCode(error));
+    throw error;
+  }
 
   return guardAndValidateDashboardResponse({
     status: "completed",
     requestId: response.requestId,
     query: response.query,
-    company: toDashboardCompanyInfo(webResult.profileAssembly.profile, response.query.foundedYear),
+    company: toDashboardCompanyInfo(enrichedProfile, response.query.foundedYear),
     expansion,
     sources: webResult.profileAssembly.sources,
   });

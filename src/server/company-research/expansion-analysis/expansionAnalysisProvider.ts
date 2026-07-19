@@ -4,9 +4,15 @@ import { getAIConfig } from "../../ai/config.ts";
 import { createOpenAiExpansionAnalysisProvider } from "./createOpenAiExpansionAnalysisProvider.ts";
 import type { ExpansionAnalysisProvider } from "./types.ts";
 
-/** Bounded cost/latency for the single expansion-analysis call. */
-const EXPANSION_ANALYSIS_TIMEOUT_MS = 45_000;
-const EXPANSION_ANALYSIS_MAX_OUTPUT_TOKENS = 2500;
+/**
+ * Bounded cost/latency for the expansion-analysis call. The 15-country
+ * ranking (score/summary/opportunities/risks per country, plus the 4-category
+ * SWOT) needs materially more output budget than the earlier 5-country
+ * version did; the timeout also covers the provider's own single automatic
+ * retry, so it is not simply the per-call budget.
+ */
+const EXPANSION_ANALYSIS_TIMEOUT_MS = 60_000;
+const EXPANSION_ANALYSIS_MAX_OUTPUT_TOKENS = 6000;
 
 /**
  * Production expansion-analysis provider backed by the OpenAI Responses API +

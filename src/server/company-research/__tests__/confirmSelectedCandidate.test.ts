@@ -1,11 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { confirmSelectedCandidate } from "../identification/confirmSelectedCandidate.ts";
-import {
-  CandidateNotFoundError,
-  CandidateQueryMismatchError,
-  InvalidCandidateIdError,
-} from "../errors.ts";
+import { CandidateNotFoundError, InvalidCandidateIdError } from "../errors.ts";
 import type { CompanyDataProvider, KrsCompany, NormalizedQuery } from "../types.ts";
 
 const CTX = { requestId: "req-1", version: "test", researchedAt: "2026-07-15T10:00:00.000Z" };
@@ -26,30 +22,39 @@ test("exact name → completed", async () => {
   assert.equal(res.status, "completed");
 });
 
-test("name without the legal form (sp. z o.o.) → completed (strong/exact)", async () => {
+test("name without the legal form (sp. z o.o.) → completed", async () => {
   const res = await confirmSelectedCandidate(ID, query("Przykładowa Sp. z o.o."), krsProvider(krsCompany("Przykładowa")), CTX);
   assert.equal(res.status, "completed");
 });
 
-test("one shared token but a different company → CANDIDATE_QUERY_MISMATCH (weak)", async () => {
-  await assert.rejects(
-    () => confirmSelectedCandidate(ID, query("Alfa Handel"), krsProvider(krsCompany("Alfa Produkcja")), CTX),
-    CandidateQueryMismatchError,
-  );
+// A candidate returned in `needs_confirmation` was, by definition, already
+// weakly/partially name-matched — confirming it must still succeed, since a
+// human explicitly picked it from the returned list. Re-running the same
+// text-similarity score here would make legitimately returned candidates
+// unselectable, which is exactly the bug this flow must never reintroduce.
+test("one shared token but an otherwise different-looking company → still completed (weak match is never re-checked)", async () => {
+  const res = await confirmSelectedCandidate(ID, query("Alfa Handel"), krsProvider(krsCompany("Alfa Produkcja")), CTX);
+  assert.equal(res.status, "completed");
 });
 
-test("completely different name → CANDIDATE_QUERY_MISMATCH", async () => {
-  await assert.rejects(
-    () => confirmSelectedCandidate(ID, query("Zupełnie Inna"), krsProvider(krsCompany("Alfa Beta")), CTX),
-    CandidateQueryMismatchError,
-  );
+test("a completely different name from the query → still completed (weak match is never re-checked)", async () => {
+  const res = await confirmSelectedCandidate(ID, query("Zupełnie Inna"), krsProvider(krsCompany("Alfa Beta")), CTX);
+  assert.equal(res.status, "completed");
 });
 
-test("picking an arbitrary valid KRS that does not match the query → rejected", async () => {
-  await assert.rejects(
-    () => confirmSelectedCandidate(ID, query("Moja Firma"), krsProvider(krsCompany("Zupełnie Losowa Spółka")), CTX),
-    CandidateQueryMismatchError,
+test("picking any valid, KRS-verified candidate → completed regardless of how it compares to the query text", async () => {
+  const res = await confirmSelectedCandidate(ID, query("Moja Firma"), krsProvider(krsCompany("Zupełnie Losowa Spółka")), CTX);
+  assert.equal(res.status, "completed");
+});
+
+test("case, whitespace and legal-form differences between the query and the registry name never block a selection", async () => {
+  const res = await confirmSelectedCandidate(
+    ID,
+    query("   pRzYkŁaDoWa   "),
+    krsProvider(krsCompany("Przykładowa Spółka Akcyjna")),
+    CTX,
   );
+  assert.equal(res.status, "completed");
 });
 
 test("invalid candidateId → InvalidCandidateIdError", async () => {
@@ -59,7 +64,14 @@ test("invalid candidateId → InvalidCandidateIdError", async () => {
   );
 });
 
-test("KRS not found → CandidateNotFoundError", async () => {
+test("an unknown candidateId (not a well-formed id at all) → InvalidCandidateIdError", async () => {
+  await assert.rejects(
+    () => confirmSelectedCandidate("not-a-candidate-id", query("Alfa"), krsProvider(krsCompany("Alfa")), CTX),
+    InvalidCandidateIdError,
+  );
+});
+
+test("KRS not found (candidate id points outside any real registry entity) → CandidateNotFoundError", async () => {
   await assert.rejects(
     () => confirmSelectedCandidate(ID, query("Alfa"), krsProvider(null), CTX),
     CandidateNotFoundError,

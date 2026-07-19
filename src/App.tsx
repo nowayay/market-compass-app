@@ -5,7 +5,7 @@ import type { ChangeEvent } from 'react';
 import { geoNaturalEarth1, geoPath } from 'd3-geo';
 import type { FeatureCollection } from 'geojson';
 import { researchCompany, CompanyResearchClientError } from './lib/company-research/client';
-import { loadDashboard, saveDashboard, clearDashboard } from './lib/dashboardStorage';
+import { loadProfiles, profileKeyOf, removeProfile, saveProfiles, upsertProfile } from './lib/profileStorage';
 import { decorateCountry, buildChatCompanyContext } from './lib/derive';
 import {
   ChatClientError,
@@ -15,12 +15,13 @@ import {
   MAX_MESSAGE_CHARS,
 } from './lib/ai/chatClient';
 import type { ChatRequestMessage } from './lib/ai/chatClient';
-import type { AppState, ChatMessage, FormValues } from './types';
+import type { AppState, ChatMessage, FormValues, SearchQuery } from './types';
 import { emptyFormValues } from './types';
 import CompanyFormScreen from './screens/CompanyFormScreen';
 import ConfirmCandidateScreen from './screens/ConfirmCandidateScreen';
 import AnalyzingScreen from './screens/AnalyzingScreen';
 import DashboardScreen from './screens/DashboardScreen';
+import ProfilesScreen from './screens/ProfilesScreen';
 import MapFullModal from './components/MapFullModal';
 import ChatModal from './components/ChatModal';
 import CountryDetailModal from './components/CountryDetailModal';
@@ -30,6 +31,7 @@ const initialState: AppState = {
   form: emptyFormValues(),
   formError: null,
   apiError: null,
+  searchQuery: null,
   candidates: [],
   dashboard: null,
   selectedCountryCode: null,
@@ -42,6 +44,9 @@ const initialState: AppState = {
   chatInput: '',
   chatGenerating: false,
   chatError: null,
+  profiles: [],
+  profileMenuOpenId: null,
+  profileToDeleteId: null,
 };
 
 const CHAT_GREETING =
@@ -69,10 +74,12 @@ export default function App() {
     };
   }, []);
 
-  // Client-only: restore the last completed dashboard, if any.
+  // Client-only: restore saved company profiles (migrating the legacy
+  // single-dashboard slot on first read, if needed). With at least one saved
+  // profile, land on the profile picker instead of the search form.
   useEffect(() => {
-    const dashboard = loadDashboard();
-    if (dashboard) patch({ dashboard, screen: 'dashboard' });
+    const profiles = loadProfiles();
+    patch(profiles.length > 0 ? { profiles, screen: 'profiles' } : { profiles });
   }, []);
 
   useEffect(() => {
@@ -105,27 +112,34 @@ export default function App() {
     return Number.isInteger(year) ? year : undefined;
   }
 
-  async function runResearch(selectedCandidateId?: string) {
+  function buildSearchQuery(): SearchQuery {
+    return {
+      name: stateRef.current.form.name.trim(),
+      foundedYear: parsedFoundedYear(),
+      krs: stateRef.current.form.krs.trim() || undefined,
+    };
+  }
+
+  // `query` is always the ORIGINAL search input (frozen at submit time, see
+  // `submitForm`/`selectCandidate`) — a candidate confirmation reuses it
+  // verbatim rather than re-reading `state.form`, which may no longer be what
+  // was actually searched. Guards against a double-click / overlapping
+  // request: a second call while one is already in flight is a no-op.
+  async function runResearch(query: SearchQuery, selectedCandidateId?: string) {
+    if (researchAbortRef.current) return;
     const controller = new AbortController();
     researchAbortRef.current = controller;
     patch({ screen: 'loading', apiError: null });
 
     try {
-      const result = await researchCompany(
-        {
-          query: {
-            name: stateRef.current.form.name.trim(),
-            foundedYear: parsedFoundedYear(),
-            krs: stateRef.current.form.krs.trim() || undefined,
-          },
-          selectedCandidateId,
-        },
-        controller.signal,
-      );
+      const result = await researchCompany({ query, selectedCandidateId }, controller.signal);
 
       if (result.status === 'completed') {
-        saveDashboard(result);
-        patch({ screen: 'dashboard', dashboard: result, candidates: [], apiError: null });
+        // Adds a new profile, or updates the existing one for this company's
+        // KRS in place — earlier profiles are never removed by this.
+        const profiles = upsertProfile(stateRef.current.profiles, result, new Date().toISOString());
+        saveProfiles(profiles);
+        patch({ screen: 'dashboard', dashboard: result, candidates: [], apiError: null, profiles });
         return;
       }
       if (result.status === 'needs_confirmation') {
@@ -148,20 +162,28 @@ export default function App() {
       patch({ formError: 'Podaj nazwę firmy, aby rozpocząć wyszukiwanie.' });
       return;
     }
-    runResearch();
+    const query = buildSearchQuery();
+    patch({ searchQuery: query });
+    runResearch(query);
   }
 
+  // Reuses the exact query that produced the currently shown candidate list —
+  // never re-derived from (and never compared against) the live form state.
   function selectCandidate(candidateId: string) {
-    runResearch(candidateId);
+    const query = stateRef.current.searchQuery;
+    if (!query) return;
+    runResearch(query, candidateId);
   }
 
   function backToForm() {
     researchAbortRef.current?.abort();
+    researchAbortRef.current = null;
     patch({ screen: 'form', candidates: [], apiError: null });
   }
 
+  // Goes to the search form for a new company. Earlier saved profiles are
+  // never touched — they stay in localStorage and in `state.profiles`.
   function startNewAnalysis() {
-    clearDashboard();
     patch({
       screen: 'form',
       form: emptyFormValues(),
@@ -171,6 +193,46 @@ export default function App() {
       dashboard: null,
       selectedCountryCode: null,
     });
+  }
+
+  // ---- company profiles ----
+  function openProfiles() {
+    patch({ screen: 'profiles' });
+  }
+
+  function selectProfile(id: string) {
+    const entry = stateRef.current.profiles.find((p) => p.id === id);
+    if (!entry) return;
+    patch({ screen: 'dashboard', dashboard: entry.dashboard, selectedCountryCode: null });
+  }
+
+  function toggleProfileMenu(id: string) {
+    patch((s) => ({ profileMenuOpenId: s.profileMenuOpenId === id ? null : id }));
+  }
+
+  function closeProfileMenu() {
+    patch({ profileMenuOpenId: null });
+  }
+
+  function requestDeleteProfile(id: string) {
+    patch({ profileMenuOpenId: null, profileToDeleteId: id });
+  }
+
+  function cancelDeleteProfile() {
+    patch({ profileToDeleteId: null });
+  }
+
+  function confirmDeleteProfile() {
+    const id = stateRef.current.profileToDeleteId;
+    if (!id) return;
+    const profiles = removeProfile(stateRef.current.profiles, id);
+    saveProfiles(profiles);
+    patch((s) => ({
+      profiles,
+      profileToDeleteId: null,
+      // Never leave the currently open dashboard pointing at a deleted profile.
+      dashboard: s.dashboard && profileKeyOf(s.dashboard) === id ? null : s.dashboard,
+    }));
   }
 
   // ---- dashboard: map + ranking ----
@@ -321,6 +383,21 @@ export default function App() {
 
       {state.screen === 'loading' && <AnalyzingScreen />}
 
+      {state.screen === 'profiles' && (
+        <ProfilesScreen
+          profiles={state.profiles}
+          openMenuId={state.profileMenuOpenId}
+          deleteTargetId={state.profileToDeleteId}
+          onSelectProfile={selectProfile}
+          onNewProfile={startNewAnalysis}
+          onToggleMenu={toggleProfileMenu}
+          onCloseMenu={closeProfileMenu}
+          onRequestDelete={requestDeleteProfile}
+          onCancelDelete={cancelDeleteProfile}
+          onConfirmDelete={confirmDeleteProfile}
+        />
+      )}
+
       {state.screen === 'dashboard' && state.dashboard && (
         <DashboardScreen
           dashboard={state.dashboard}
@@ -332,6 +409,7 @@ export default function App() {
           onSelectCountry={selectCountry}
           onOpenMapFull={openMapFull}
           onNewAnalysis={startNewAnalysis}
+          onBackToProfiles={openProfiles}
         />
       )}
 

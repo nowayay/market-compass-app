@@ -4,8 +4,8 @@ import { InvalidExpansionAnalysisResponseError } from "../errors.ts";
 import { iso2ToIso3 } from "../../../data/iso2to3.ts";
 import type { ExpansionAnalysis, RankedCountry } from "../../../contracts/companyDashboard.ts";
 
-/** Exactly 5 distinct expansion-target countries per analysis. */
-export const RANKED_COUNTRIES_COUNT = 5;
+/** Exactly 15 distinct expansion-target countries per analysis. */
+export const RANKED_COUNTRIES_COUNT = 15;
 /** SWOT bullets per category: at least 3, at most 5. */
 export const SWOT_MIN_ITEMS = 3;
 export const SWOT_MAX_ITEMS = 5;
@@ -38,7 +38,7 @@ export const EXPANSION_ANALYSIS_JSON_SCHEMA: Record<string, unknown> = {
     },
     rankedCountries: {
       type: "array",
-      description: "Exactly 5 distinct recommended expansion-target countries.",
+      description: "Exactly 15 distinct recommended expansion-target countries.",
       maxItems: RANKED_COUNTRIES_COUNT,
       items: {
         type: "object",
@@ -105,7 +105,7 @@ function toBoundedBullets(values: unknown[], context: string): string[] {
  *   ISO 3166-1 alpha-2 list the world map uses (`iso2ToIso3`), so every
  *   accepted code is guaranteed to be highlightable on the map,
  * - scores outside the [0, 100] range are rejected outright (never clamped),
- * - EXACTLY 5 countries with distinct codes are required (never invented,
+ * - EXACTLY 15 countries with distinct codes are required (never invented,
  *   never silently deduped/backfilled — a violation is rejected outright),
  * - the final list is (re-)sorted by score descending, never trusting the
  *   model's own ordering,

@@ -4,10 +4,9 @@ import type { DecoratedCountry, WorldFeature } from "../../types";
 export { buildMapFeatures } from "./mapFeatures";
 
 const LEGEND = [
-  { color: '#16A34A', label: 'Bardzo wysoki' },
-  { color: '#7CB342', label: 'Wysoki' },
-  { color: '#F59E0B', label: 'Średni' },
-  { color: '#EF4444', label: 'Bardzo niski' },
+  { color: '#16A34A', label: 'Miejsca 1–5' },
+  { color: '#F59E0B', label: 'Miejsca 6–10' },
+  { color: '#EF4444', label: 'Miejsca 11–15' },
   { color: '#D1D5DB', label: 'Brak danych' },
 ];
 

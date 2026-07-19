@@ -4,7 +4,7 @@
  * This is the shape `/api/company-research` returns once identification has
  * resolved to a single company: KRS-verified legal facts enriched (when
  * available) by the internal web-research pipeline, plus a single AI-generated
- * expansion analysis (SWOT + a 5-country ranking).
+ * expansion analysis (SWOT + a 15-country ranking).
  *
  * Shared by server and browser code: pure types only, no runtime dependencies,
  * no `server-only`, no secrets. Carries no natural-person data — MarketCompass
@@ -50,7 +50,7 @@ export interface RankedCountry {
 
 export interface ExpansionAnalysis {
   swot: ExpansionSwot;
-  /** Exactly 5 distinct countries, sorted by score descending. */
+  /** Exactly 15 distinct countries, sorted by score descending. */
   rankedCountries: RankedCountry[];
 }
 

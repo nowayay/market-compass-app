@@ -113,14 +113,6 @@ export class CandidateNotFoundError extends CompanyResearchError {
   }
 }
 
-/** The selected candidate contradicts the query name. */
-export class CandidateQueryMismatchError extends CompanyResearchError {
-  readonly code: CompanyResearchErrorCode = "CANDIDATE_QUERY_MISMATCH";
-  constructor(message = "Selected candidate contradicts the query") {
-    super(message, "Wybrany podmiot nie odpowiada podanej nazwie firmy.");
-  }
-}
-
 /** Name identification (paid web search) is disabled by configuration. */
 export class CompanyIdentificationDisabledError extends CompanyResearchError {
   readonly code: CompanyResearchErrorCode = "COMPANY_IDENTIFICATION_DISABLED";
@@ -190,8 +182,6 @@ export function errorHttpStatus(code: CompanyResearchErrorCode): number {
       return 413;
     case "CANDIDATE_NOT_FOUND":
       return 404;
-    case "CANDIDATE_QUERY_MISMATCH":
-      return 409;
     case "COMPANY_IDENTIFICATION_RATE_LIMITED":
       return 429;
     case "COMPANY_RESEARCH_PROVIDER_ERROR":

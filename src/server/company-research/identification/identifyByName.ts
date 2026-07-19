@@ -1,4 +1,5 @@
 import type { CompanyResearchResponse } from "../../../contracts/companyResearch.ts";
+import { logPipelineStage, stageErrorReasonCode } from "../logging/pipelineStageLog.ts";
 import {
   buildCompletedResponse,
   buildNotFoundResponse,
@@ -9,7 +10,7 @@ import {
 } from "../mappers/toIdentificationResponse.ts";
 import { classifyEntityType } from "../resolution/identifyCompany.ts";
 import { decideIdentification, scoreCandidates } from "./matchCompanyCandidates.ts";
-import type { CompanyIdentificationProvider, VerifiedCandidate } from "./types.ts";
+import type { CompanyIdentificationProvider, DiscoveryResult, VerifiedCandidate } from "./types.ts";
 import type { CompanyDataProvider, NormalizedQuery } from "../types.ts";
 
 export interface IdentifyByNameDeps {
@@ -45,28 +46,45 @@ export async function identifyByName(
   deps: IdentifyByNameDeps,
   ctx: IdentifyByNameContext,
 ): Promise<CompanyResearchResponse> {
-  const discovery = await deps.identificationProvider.discoverCandidates(
-    { name: query.name, countryCode: query.countryCode, foundedYear: query.foundedYear },
-    ctx.signal,
-  );
+  let discovery: DiscoveryResult;
+  try {
+    discovery = await deps.identificationProvider.discoverCandidates(
+      { name: query.name, countryCode: query.countryCode, foundedYear: query.foundedYear },
+      ctx.signal,
+    );
+    logPipelineStage("identification", "completed");
+  } catch (error) {
+    // A required-stage failure — logged for diagnosis, but NEVER hidden: it
+    // still propagates unchanged (see httpHandler's typed-error mapping).
+    logPipelineStage("identification", "error", stageErrorReasonCode(error));
+    throw error;
+  }
 
   const distinctSourceHostnames = new Set(discovery.sources.map((s) => s.hostname)).size;
 
   const verified: VerifiedCandidate[] = [];
   const seenKrs = new Set<string>();
-  for (const candidate of discovery.candidates) {
-    if (seenKrs.has(candidate.krs)) continue; // never call the same KRS twice
-    // Hard cap on registry calls per name search (defense-in-depth; discovery
-    // already caps candidates at MAX_DISCOVERED_CANDIDATES).
-    if (seenKrs.size >= MAX_KRS_VERIFICATIONS) break;
-    seenKrs.add(candidate.krs);
+  try {
+    for (const candidate of discovery.candidates) {
+      if (seenKrs.has(candidate.krs)) continue; // never call the same KRS twice
+      // Hard cap on registry calls per name search (defense-in-depth; discovery
+      // already caps candidates at MAX_DISCOVERED_CANDIDATES).
+      if (seenKrs.size >= MAX_KRS_VERIFICATIONS) break;
+      seenKrs.add(candidate.krs);
 
-    const krsCompany = await deps.krsProvider.fetchByKrs(candidate.krs, ctx.signal);
-    if (krsCompany === null) continue; // 404 / not in registry
-    if (krsCompany.legalName.length === 0) continue; // incomplete data
-    if (classifyEntityType(krsCompany.legalForm) === "natural_person_business") continue;
+      const krsCompany = await deps.krsProvider.fetchByKrs(candidate.krs, ctx.signal);
+      if (krsCompany === null) continue; // 404 / no current extract — not a failure
+      if (krsCompany.legalName.length === 0) continue; // incomplete data
+      if (classifyEntityType(krsCompany.legalForm) === "natural_person_business") continue;
 
-    verified.push({ krsCompany, discovered: candidate });
+      verified.push({ krsCompany, discovered: candidate });
+    }
+    logPipelineStage("krs-verification", "completed");
+  } catch (error) {
+    // A required-stage failure (e.g. the registry itself is down) — logged,
+    // but never hidden: it still propagates unchanged.
+    logPipelineStage("krs-verification", "error", stageErrorReasonCode(error));
+    throw error;
   }
 
   const scored = scoreCandidates(query, verified, distinctSourceHostnames);

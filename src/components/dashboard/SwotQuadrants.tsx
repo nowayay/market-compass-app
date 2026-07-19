@@ -3,7 +3,7 @@ import type { ExpansionSwot } from "../../types";
 const SWOT_META = [
   { key: 'strengths', letter: 'S', label: 'Mocne strony', color: '#16A34A' },
   { key: 'weaknesses', letter: 'W', label: 'Słabe strony', color: '#F59E0B' },
-  { key: 'opportunities', letter: 'O', label: 'Szanse', color: '#16A34A' },
+  { key: 'opportunities', letter: 'O', label: 'Szanse', color: '#8B5CF6' },
   { key: 'threats', letter: 'T', label: 'Zagrożenia', color: '#EF4444' },
 ] as const;
 

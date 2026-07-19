@@ -79,9 +79,31 @@ export function createKrsTransport(deps: KrsTransportDeps): CompanyDataProvider 
       }
 
       // Raw payload lives only here, only until the allowlist runs.
+      let text: string;
+      try {
+        text = await response.text();
+      } catch (cause) {
+        const kind = classifyKrsFailure({
+          callerAborted: Boolean(signal?.aborted),
+          timedOut: timeout.aborted,
+        });
+        if (kind === "abort") throw cause; // caller cancellation propagates as-is
+        if (kind === "timeout") throw new CompanyResearchTimeoutError("KRS body read timed out");
+        throw new CompanyResearchProviderError("KRS request failed while reading the response body", response.status);
+      }
+
+      // Some KRS numbers resolve to an "ok" status (observed: HTTP 204) with an
+      // EMPTY body instead of a 404 — e.g. a historical/deregistered entity that
+      // has no current "OdpisAktualny" extract. Treat this the same as "not
+      // found" rather than crashing on an empty JSON parse (the actual cause of
+      // the previous COMPANY_RESEARCH_PROVIDER_ERROR / HTTP 502 regression).
+      if (text.trim().length === 0) {
+        return null;
+      }
+
       let raw: unknown;
       try {
-        raw = await response.json();
+        raw = JSON.parse(text);
       } catch (cause) {
         // A timeout or caller-abort during the body read must NOT be reported as
         // malformed JSON. Classify by the current signal state.

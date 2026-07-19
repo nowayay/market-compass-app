@@ -105,6 +105,25 @@ test("sends exactly one domain-restricted web-search + strict Structured-Output 
   assert.ok(options.signal instanceof AbortSignal); // (12)
 });
 
+// (localization) MarketCompass MVP: generated business facts must default to Polish
+test("the instructions require Polish for the human-readable facts and preserve names/domains untranslated", async () => {
+  let capturedParams: BusinessResearchCreateParams | null = null;
+  const p = provider(async (params) => {
+    capturedParams = params;
+    return successResponse(facts());
+  });
+  await p.researchBusiness(INPUT);
+
+  const instructions = (capturedParams as unknown as { instructions: string }).instructions;
+  assert.match(instructions, /Polish/);
+  assert.ok(instructions.includes("industryDescription, productsServices, customerSegments and"));
+  assert.ok(instructions.includes("operatingMarkets in natural, professional Polish"));
+  assert.ok(instructions.toLowerCase().includes("official company name"));
+  assert.ok(instructions.toLowerCase().includes("source domain"));
+  assert.ok(instructions.toLowerCase().includes("trademarks"));
+  assert.ok(instructions.includes("do not translate them"));
+});
+
 // (6/7) input contains only allowed fields; serialized request excludes identifiers/PKD
 test("the serialized request contains only allowlisted fields and no identifiers/PKD", async () => {
   let sentInput: Record<string, unknown> | null = null;

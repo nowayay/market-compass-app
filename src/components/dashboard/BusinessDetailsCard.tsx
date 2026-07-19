@@ -1,18 +1,16 @@
 function BulletColumn({ title, items }: { title: string; items: string[] }) {
+  if (items.length === 0) return null;
+
   return (
     <div>
       <div style={{ fontSize: 12.5, fontWeight: 700, color: '#374151', marginBottom: 10 }}>{title}</div>
-      {items.length === 0 ? (
-        <div style={{ fontSize: 12.5, color: '#9CA3AF' }}>Brak danych</div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-          {items.map((item, i) => (
-            <div key={i} style={{ display: 'flex', gap: 7, fontSize: 12.5, color: '#1F2937', lineHeight: 1.4 }}>
-              <span style={{ color: '#16A34A' }}>•</span>{item}
-            </div>
-          ))}
-        </div>
-      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+        {items.map((item, i) => (
+          <div key={i} style={{ display: 'flex', gap: 7, fontSize: 12.5, color: '#1F2937', lineHeight: 1.4 }}>
+            <span style={{ color: '#16A34A' }}>•</span>{item}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

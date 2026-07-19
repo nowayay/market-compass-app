@@ -72,6 +72,8 @@ function messageForCode(code: unknown): string {
       return "MarketCompassAI jest chwilowo niedostępny. Spróbuj ponownie.";
     case "AI_INVALID_RESPONSE":
       return "MarketCompassAI nie wygenerował poprawnej odpowiedzi. Spróbuj ponownie.";
+    case "RATE_LIMITED":
+      return "Zbyt wiele wiadomości w krótkim czasie. Spróbuj ponownie za chwilę.";
     default:
       // AI_INTERNAL_ERROR and any unknown code.
       return GENERIC_ERROR_MESSAGE;

@@ -21,7 +21,7 @@ export interface ExpansionAnalysisInput {
 
 /**
  * One structured AI call that turns an assembled company profile into a SWOT
- * analysis plus a 5-country expansion ranking. Implementations must never
+ * analysis plus a 15-country expansion ranking. Implementations must never
  * accept or return natural-person data, invented financial figures, or legal/
  * tax guarantees.
  */

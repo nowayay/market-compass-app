@@ -1,17 +1,11 @@
 import type { CompanyResearchResponse } from "../../../contracts/companyResearch.ts";
-import {
-  CandidateNotFoundError,
-  CandidateQueryMismatchError,
-  InvalidCandidateIdError,
-} from "../errors.ts";
+import { CandidateNotFoundError, InvalidCandidateIdError } from "../errors.ts";
 import {
   buildCompletedResponse,
   buildUnsupportedResponse,
 } from "../mappers/toDashboardResponse.ts";
 import { classifyEntityType } from "../resolution/identifyCompany.ts";
 import { parseCandidateId } from "./candidateId.ts";
-import { strengthFor } from "./matchCompanyCandidates.ts";
-import { nameMatchScore } from "./normalizeCompanyName.ts";
 import type { CompanyDataProvider, NormalizedQuery } from "../types.ts";
 
 export interface ConfirmContext {
@@ -26,9 +20,17 @@ export interface ConfirmContext {
  * - parse & validate the candidateId (→ INVALID_CANDIDATE_ID),
  * - fetch the entity from the official KRS (→ CANDIDATE_NOT_FOUND on 404),
  * - reject natural-person entities (unsupported_entity_type),
- * - require an exact or strong name match with the query, conservatively
- *   rejecting a weak match (→ CANDIDATE_QUERY_MISMATCH),
  * - return completed for the confirmed entity.
+ *
+ * Deliberately does NOT re-derive a name match against `query.name`: every
+ * candidate the identification stage returned in `needs_confirmation` was, by
+ * definition, already confirmed against the official KRS registry — a human
+ * explicitly picking one of them (by its real legal name/city/KRS shown in
+ * the UI) is a stronger signal than any text-similarity heuristic, and must
+ * never be second-guessed by re-running the very score that put it in
+ * `needs_confirmation` in the first place (that would make an entire class of
+ * legitimately returned candidates unselectable). The only reasons to reject
+ * a selection are a malformed id or a KRS number that does not resolve.
  */
 export async function confirmSelectedCandidate(
   candidateId: string,
@@ -52,13 +54,6 @@ export async function confirmSelectedCandidate(
       query,
       reason: "natural_person_business",
     });
-  }
-
-  // Re-derive the match from the public registry name; accept only an exact or
-  // strong match, conservatively rejecting a weak one.
-  const score = nameMatchScore(query.name, krsCompany.legalName);
-  if (strengthFor(score) === "weak") {
-    throw new CandidateQueryMismatchError();
   }
 
   return buildCompletedResponse({

@@ -11,8 +11,8 @@ export type {
 } from "./contracts/companyDashboard";
 export type { CompanyCandidate } from "./contracts/companyResearch";
 
-/** The app's top-level screens. No multi-profile management in this MVP. */
-export type Screen = "form" | "confirm" | "loading" | "dashboard";
+/** The app's top-level screens. */
+export type Screen = "form" | "confirm" | "loading" | "dashboard" | "profiles";
 
 /** Raw (string) values bound to the search form's inputs. */
 export interface FormValues {
@@ -55,11 +55,33 @@ export interface DecoratedCountry extends RankedCountry {
   mapFill: string;
 }
 
+/**
+ * The exact company-search query that produced the currently shown search
+ * result / candidate list, frozen at submit time. A candidate confirmation
+ * always reuses this verbatim — it is never re-derived from (or compared
+ * against) whatever the form fields happen to hold at click time.
+ */
+export interface SearchQuery {
+  name: string;
+  foundedYear?: number;
+  krs?: string;
+}
+
+/** One saved company profile: a completed dashboard plus its own persistence bookkeeping. */
+export interface CompanyProfileEntry {
+  /** Stable dedup key — the company's KRS when known, else a request-id fallback. */
+  id: string;
+  /** ISO timestamp of when this profile was last added/updated. */
+  savedAt: string;
+  dashboard: DashboardCompletedResponse;
+}
+
 export interface AppState {
   screen: Screen;
   form: FormValues;
   formError: string | null;
   apiError: string | null;
+  searchQuery: SearchQuery | null;
   candidates: CompanyCandidate[];
   dashboard: DashboardCompletedResponse | null;
   selectedCountryCode: string | null;
@@ -72,4 +94,7 @@ export interface AppState {
   chatInput: string;
   chatGenerating: boolean;
   chatError: string | null;
+  profiles: CompanyProfileEntry[];
+  profileMenuOpenId: string | null;
+  profileToDeleteId: string | null;
 }
