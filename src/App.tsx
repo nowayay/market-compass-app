@@ -54,6 +54,12 @@ const CHAT_GREETING =
 const CHAT_GENERIC_ERROR =
   'Nie udało się uzyskać odpowiedzi MarketCompassAI. Spróbuj ponownie.';
 const GENERIC_RESEARCH_ERROR = 'Nie udało się wykonać researchu firmy. Spróbuj ponownie.';
+// Client-side ceiling for the whole research request. Kept just under the
+// route's serverless maxDuration (300s) so the browser gives up slightly after
+// the server would, surfacing a clear message instead of a hung spinner.
+const RESEARCH_REQUEST_TIMEOUT_MS = 290_000;
+const RESEARCH_TIMEOUT_ERROR =
+  'Analiza trwała zbyt długo i została przerwana. Spróbuj ponownie za chwilę.';
 
 export default function App() {
   const [state, setState] = useState<AppState>(initialState);
@@ -129,10 +135,15 @@ export default function App() {
     if (researchAbortRef.current) return;
     const controller = new AbortController();
     researchAbortRef.current = controller;
+    // Combine the user-cancellation controller with a hard request timeout, so
+    // a stuck request is abandoned client-side rather than spinning forever.
+    // The two aborts are told apart below via each signal's `.aborted` flag.
+    const timeoutSignal = AbortSignal.timeout(RESEARCH_REQUEST_TIMEOUT_MS);
+    const signal = AbortSignal.any([controller.signal, timeoutSignal]);
     patch({ screen: 'loading', apiError: null });
 
     try {
-      const result = await researchCompany({ query, selectedCandidateId }, controller.signal);
+      const result = await researchCompany({ query, selectedCandidateId }, signal);
 
       if (result.status === 'completed') {
         // Adds a new profile, or updates the existing one for this company's
@@ -149,6 +160,16 @@ export default function App() {
       // not_found
       patch({ screen: 'form', apiError: result.message, candidates: [] });
     } catch (error) {
+      // A user-initiated cancellation (backToForm / overlapping submit) stays
+      // silent; only the request timeout surfaces its own message.
+      if (controller.signal.aborted) return;
+      if (timeoutSignal.aborted) {
+        patch({
+          screen: stateRef.current.candidates.length > 0 ? 'confirm' : 'form',
+          apiError: RESEARCH_TIMEOUT_ERROR,
+        });
+        return;
+      }
       if (isAbortError(error)) return;
       const message = error instanceof CompanyResearchClientError ? error.message : GENERIC_RESEARCH_ERROR;
       patch({ screen: stateRef.current.candidates.length > 0 ? 'confirm' : 'form', apiError: message });
@@ -261,6 +282,23 @@ export default function App() {
     return msgs;
   }
 
+  /** True when the last message is an assistant reply that already has content. */
+  function lastAssistantHasText(msgs: ChatMessage[]): boolean {
+    const last = msgs[msgs.length - 1];
+    return !!last && last.role === 'assistant' && last.text.trim().length > 0;
+  }
+
+  /** Flags the last assistant reply as truncated, so the UI shows the neutral note. */
+  function markLastAssistantTruncated(msgs: ChatMessage[]): ChatMessage[] {
+    const last = msgs[msgs.length - 1];
+    if (last && last.role === 'assistant' && last.text.trim().length > 0) {
+      const copy = msgs.slice();
+      copy[copy.length - 1] = { ...last, truncated: true };
+      return copy;
+    }
+    return msgs;
+  }
+
   async function startGeneration(rawQuestion: string, baseMessages: ChatMessage[]) {
     const question = rawQuestion.trim();
     if (!question || question.length > MAX_MESSAGE_CHARS) return;
@@ -292,7 +330,7 @@ export default function App() {
       : undefined;
 
     try {
-      await streamChat(
+      const status = await streamChat(
         requestHistory,
         {
           onTextDelta: (delta) => {
@@ -302,24 +340,26 @@ export default function App() {
         controller.signal,
         companyContext,
       );
-      if (chatGenRef.current === genId) patch({ chatGenerating: false });
+      if (chatGenRef.current !== genId) return;
+      // A truncated reply keeps its partial text; only add the neutral note.
+      setState((s) => ({
+        ...s,
+        chatMessages: status === 'truncated' ? markLastAssistantTruncated(s.chatMessages) : s.chatMessages,
+        chatGenerating: false,
+      }));
     } catch (err) {
       if (chatGenRef.current !== genId) return;
-      if (isAbortError(err)) {
-        setState((s) => ({
-          ...s,
-          chatMessages: dropEmptyPlaceholder(s.chatMessages),
-          chatGenerating: false,
-        }));
-      } else {
-        const message = err instanceof ChatClientError ? err.message : CHAT_GENERIC_ERROR;
-        setState((s) => ({
-          ...s,
-          chatMessages: dropEmptyPlaceholder(s.chatMessages),
-          chatGenerating: false,
-          chatError: message,
-        }));
-      }
+      // Whether it was an abort or a stream error: if useful text already
+      // arrived, keep it and show the neutral "shortened" note instead of a red
+      // error. Only a truly empty reply surfaces the full error.
+      setState((s) => {
+        if (lastAssistantHasText(s.chatMessages)) {
+          return { ...s, chatMessages: markLastAssistantTruncated(s.chatMessages), chatGenerating: false };
+        }
+        const base = { ...s, chatMessages: dropEmptyPlaceholder(s.chatMessages), chatGenerating: false };
+        if (isAbortError(err)) return base;
+        return { ...base, chatError: err instanceof ChatClientError ? err.message : CHAT_GENERIC_ERROR };
+      });
     } finally {
       if (chatAbortRef.current === controller) chatAbortRef.current = null;
     }
@@ -436,8 +476,13 @@ export default function App() {
         />
       )}
 
-      {selectedCountry && (
-        <CountryDetailModal country={selectedCountry} onClose={closeCountry} />
+      {selectedCountry && state.dashboard && (
+        <CountryDetailModal
+          key={selectedCountry.countryCode}
+          country={selectedCountry}
+          company={state.dashboard.company}
+          onClose={closeCountry}
+        />
       )}
     </div>
   );

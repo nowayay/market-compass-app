@@ -20,7 +20,11 @@ import type {
   OpenAiExpansionAnalysisDeps,
 } from "../expansion-analysis/createOpenAiExpansionAnalysisProvider.ts";
 import type { ExpansionAnalysisInput } from "../expansion-analysis/types.ts";
-import { InvalidExpansionAnalysisResponseError } from "../errors.ts";
+import {
+  ExpansionAnalysisError,
+  ExpansionAnalysisTimeoutError,
+  InvalidExpansionAnalysisResponseError,
+} from "../errors.ts";
 
 const INPUT: ExpansionAnalysisInput = {
   legalName: "Przykładowa Spółka Sp. z o.o.",
@@ -34,10 +38,10 @@ const FIFTEEN_CODES = ["DE", "FR", "US", "GB", "NL", "PL", "BR", "ES", "IT", "SE
 
 function validSwot() {
   return {
-    strengths: ["Silna marka", "Dobra jakość produktów", "Elastyczny zespół"],
-    weaknesses: ["Mały zespół", "Ograniczony budżet", "Brak biura za granicą"],
-    opportunities: ["Rosnący popyt", "Nowe kanały online", "Wsparcie eksportowe"],
-    threats: ["Silna konkurencja", "Ryzyko walutowe", "Zmiany regulacyjne"],
+    strengths: ["Silna marka", "Dobra jakość produktów", "Elastyczny zespół", "Doświadczona kadra"],
+    weaknesses: ["Mały zespół", "Ograniczony budżet", "Brak biura za granicą", "Niska rozpoznawalność"],
+    opportunities: ["Rosnący popyt", "Nowe kanały online", "Wsparcie eksportowe", "Programy unijne"],
+    threats: ["Silna konkurencja", "Ryzyko walutowe", "Zmiany regulacyjne", "Wahania popytu"],
   };
 }
 
@@ -63,9 +67,21 @@ function completedResponse(output: unknown) {
   return { status: "completed", output_text: JSON.stringify(output), output: [] };
 }
 
-function provider(createResponse: CreateResponseFn) {
-  const deps: OpenAiExpansionAnalysisDeps = { createResponse, model: "test-model", timeoutMs: 5000, maxOutputTokens: 6000 };
+function provider(createResponse: CreateResponseFn, timeoutMs = 5000) {
+  const deps: OpenAiExpansionAnalysisDeps = { createResponse, model: "test-model", timeoutMs, maxOutputTokens: 6000 };
   return createOpenAiExpansionAnalysisProvider(deps);
+}
+
+/** Captures console.info lines, returning parsed `[company-research-stage]` payloads. */
+function captureStageLogs(): { payloads: Record<string, unknown>[]; restore: () => void } {
+  const original = console.info;
+  const payloads: Record<string, unknown>[] = [];
+  console.info = (...args: unknown[]) => {
+    if (args[0] === "[company-research-stage]" && typeof args[1] === "string") {
+      payloads.push(JSON.parse(args[1]) as Record<string, unknown>);
+    }
+  };
+  return { payloads, restore: () => { console.info = original; } };
 }
 
 /** Builds a `createResponse` fake that returns each response in order, one per call. */
@@ -174,6 +190,108 @@ test("(retry) a network/transport failure on the first attempt is never retried 
     callCount++;
     throw new Error("network down");
   };
-  await assert.rejects(() => provider(fn).analyze(INPUT));
+  await assert.rejects(() => provider(fn).analyze(INPUT), ExpansionAnalysisError);
   assert.equal(callCount, 1);
+});
+
+// (retries) transport-level auto-retries are disabled: the provider must ask
+// the OpenAI client for maxRetries: 0 so a timeout/transport error is never
+// silently re-issued underneath us.
+test("(retries) every OpenAI call is issued with maxRetries: 0", async () => {
+  const seen: number[] = [];
+  const fn: CreateResponseFn = async (_params, options) => {
+    seen.push(options.maxRetries);
+    return completedResponse(validOutput());
+  };
+  await provider(fn).analyze(INPUT);
+  assert.deepEqual(seen, [0]);
+});
+
+// (timeout) the stage's own AbortSignal.timeout is the cutoff; a timed-out call
+// surfaces ExpansionAnalysisTimeoutError and is NEVER retried.
+test("(timeout) a call that outlives the stage timeout throws ExpansionAnalysisTimeoutError and is not retried", async () => {
+  let callCount = 0;
+  const fn: CreateResponseFn = (_params, options) => {
+    callCount++;
+    return new Promise((_resolve, reject) => {
+      options.signal?.addEventListener(
+        "abort",
+        () => reject(new Error("aborted by signal")),
+        { once: true },
+      );
+    });
+  };
+  // 20ms stage timeout — the hanging call is aborted almost immediately.
+  await assert.rejects(() => provider(fn, 20).analyze(INPUT), ExpansionAnalysisTimeoutError);
+  assert.equal(callCount, 1);
+});
+
+// (timeout) a caller-supplied cancellation propagates untouched (not remapped
+// to a timeout), and is likewise never retried.
+test("(timeout) a caller abort propagates without being retried or turned into a timeout error", async () => {
+  const caller = new AbortController();
+  let callCount = 0;
+  const fn: CreateResponseFn = (_params, options) => {
+    callCount++;
+    caller.abort();
+    // The combined signal is already aborted synchronously here, so reject with
+    // its reason directly rather than racing an 'abort' listener that missed.
+    return Promise.reject(options.signal?.reason ?? new Error("aborted"));
+  };
+  await assert.rejects(async () => {
+    await provider(fn).analyze(INPUT, { signal: caller.signal });
+  });
+  assert.equal(callCount, 1);
+});
+
+// (telemetry) the OpenAI-call timing line is always emitted, with `retried`
+// reflecting whether the single schema-correction retry ran and a numeric
+// `openAiCallMs` — and nothing sensitive.
+test("(telemetry) a successful single-attempt analysis logs one openai-call line with retried=false", async () => {
+  const capture = captureStageLogs();
+  try {
+    await provider(async () => completedResponse(validOutput())).analyze(INPUT);
+  } finally {
+    capture.restore();
+  }
+  const timing = capture.payloads.find((p) => p.status === "openai-call");
+  assert.ok(timing, "expected an openai-call timing log");
+  assert.equal(timing.stage, "expansion-analysis");
+  assert.equal(timing.retried, false);
+  assert.equal(timing.outcome, "completed");
+  assert.equal(typeof timing.openAiCallMs, "number");
+});
+
+test("(telemetry) a retried analysis logs retried=true on the openai-call line", async () => {
+  const { fn } = scriptedCreateResponse([
+    completedResponse(outputWithCodes(FIFTEEN_CODES.slice(0, 14))),
+    completedResponse(validOutput()),
+  ]);
+  const capture = captureStageLogs();
+  try {
+    await provider(fn).analyze(INPUT);
+  } finally {
+    capture.restore();
+  }
+  const timing = capture.payloads.find((p) => p.status === "openai-call");
+  assert.ok(timing, "expected an openai-call timing log");
+  assert.equal(timing.retried, true);
+  assert.equal(timing.outcome, "completed");
+});
+
+test("(telemetry) a timed-out analysis logs outcome=timeout, retried=false", async () => {
+  const fn: CreateResponseFn = (_params, options) =>
+    new Promise((_resolve, reject) => {
+      options.signal?.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+    });
+  const capture = captureStageLogs();
+  try {
+    await assert.rejects(() => provider(fn, 20).analyze(INPUT), ExpansionAnalysisTimeoutError);
+  } finally {
+    capture.restore();
+  }
+  const timing = capture.payloads.find((p) => p.status === "openai-call");
+  assert.ok(timing, "expected an openai-call timing log");
+  assert.equal(timing.outcome, "timeout");
+  assert.equal(timing.retried, false);
 });

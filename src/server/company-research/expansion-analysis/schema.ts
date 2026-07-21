@@ -6,9 +6,15 @@ import type { ExpansionAnalysis, RankedCountry } from "../../../contracts/compan
 
 /** Exactly 15 distinct expansion-target countries per analysis. */
 export const RANKED_COUNTRIES_COUNT = 15;
-/** SWOT bullets per category: at least 3, at most 5. */
-export const SWOT_MIN_ITEMS = 3;
-export const SWOT_MAX_ITEMS = 5;
+/** SWOT bullets per category: EXACTLY 4, keeping the payload small and uniform. */
+export const SWOT_ITEMS_COUNT = 4;
+/**
+ * Hard character cap for every free-text field the model returns (each SWOT
+ * bullet and each country summary). Anything longer is truncated — never
+ * rejected — so a slightly-too-long field shrinks the payload instead of
+ * failing the whole analysis. Bounds response size without any UI change.
+ */
+export const MAX_TEXT_LENGTH = 180;
 
 /** JSON Schema name for the OpenAI Structured Output. */
 export const EXPANSION_ANALYSIS_SCHEMA_NAME = "company_expansion_analysis";
@@ -29,10 +35,10 @@ export const EXPANSION_ANALYSIS_JSON_SCHEMA: Record<string, unknown> = {
       type: "object",
       additionalProperties: false,
       properties: {
-        strengths: { type: "array", items: { type: "string" }, maxItems: SWOT_MAX_ITEMS },
-        weaknesses: { type: "array", items: { type: "string" }, maxItems: SWOT_MAX_ITEMS },
-        opportunities: { type: "array", items: { type: "string" }, maxItems: SWOT_MAX_ITEMS },
-        threats: { type: "array", items: { type: "string" }, maxItems: SWOT_MAX_ITEMS },
+        strengths: { type: "array", items: { type: "string" }, maxItems: SWOT_ITEMS_COUNT },
+        weaknesses: { type: "array", items: { type: "string" }, maxItems: SWOT_ITEMS_COUNT },
+        opportunities: { type: "array", items: { type: "string" }, maxItems: SWOT_ITEMS_COUNT },
+        threats: { type: "array", items: { type: "string" }, maxItems: SWOT_ITEMS_COUNT },
       },
       required: ["strengths", "weaknesses", "opportunities", "threats"],
     },
@@ -79,28 +85,42 @@ const rawOutputSchema = z.looseObject({
   rankedCountries: z.array(z.unknown()),
 });
 
-/** Trims a list of unknown values into non-empty strings, dropping the rest. */
+/** Truncates a string to the hard text cap (never rejects an over-long value). */
+function boundText(value: string): string {
+  return value.length > MAX_TEXT_LENGTH ? value.slice(0, MAX_TEXT_LENGTH) : value;
+}
+
+/**
+ * Trims a list of unknown values into non-empty strings (dropping the rest),
+ * each capped to `MAX_TEXT_LENGTH` characters.
+ */
 function toStringList(values: unknown[]): string[] {
   return values
     .filter((v): v is string => typeof v === "string")
-    .map((v) => v.trim())
+    .map((v) => boundText(v.trim()))
     .filter((v) => v.length > 0);
 }
 
-/** Validates and bounds one SWOT category's bullet list, or throws. */
+/**
+ * Validates and bounds one SWOT category's bullet list, or throws. Requires
+ * EXACTLY `SWOT_ITEMS_COUNT` non-empty bullets: extras are dropped, but too few
+ * is a structural failure (retryable by the provider). Each bullet is capped to
+ * `MAX_TEXT_LENGTH`.
+ */
 function toBoundedBullets(values: unknown[], context: string): string[] {
   const items = toStringList(values);
-  if (items.length < SWOT_MIN_ITEMS) {
-    throw new InvalidExpansionAnalysisResponseError(`${context} has fewer than ${SWOT_MIN_ITEMS} items`);
+  if (items.length < SWOT_ITEMS_COUNT) {
+    throw new InvalidExpansionAnalysisResponseError(`${context} has fewer than ${SWOT_ITEMS_COUNT} items`);
   }
-  return items.slice(0, SWOT_MAX_ITEMS);
+  return items.slice(0, SWOT_ITEMS_COUNT);
 }
 
 /**
  * Validates, sanitizes and re-derives the deterministic invariants of the
  * model's raw Structured Output into the public `ExpansionAnalysis` contract:
  * - structurally-invalid output → throws InvalidExpansionAnalysisResponseError,
- * - every SWOT category is bounded to 3-5 trimmed, non-empty bullets,
+ * - every SWOT category is bounded to EXACTLY 4 trimmed, non-empty bullets,
+ * - every free-text field (SWOT bullet, country summary) is capped to 180 chars,
  * - country codes are uppercased and validated against the same supported
  *   ISO 3166-1 alpha-2 list the world map uses (`iso2ToIso3`), so every
  *   accepted code is guaranteed to be highlightable on the map,
@@ -155,7 +175,7 @@ export function parseExpansionAnalysisOutput(raw: unknown): ExpansionAnalysis {
     seenCodes.add(countryCode);
 
     const countryName = parsed.data.countryName.trim();
-    const summary = parsed.data.summary.trim();
+    const summary = boundText(parsed.data.summary.trim());
     if (countryName.length === 0 || summary.length === 0) {
       throw new InvalidExpansionAnalysisResponseError("Expansion analysis output has an empty country name or summary");
     }

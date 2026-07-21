@@ -4,8 +4,13 @@ import { getAIConfig } from "../../ai/config.ts";
 import { createOpenAiCompanyEnrichmentProvider } from "./createOpenAiCompanyEnrichmentProvider.ts";
 import type { CompanyEnrichmentProvider } from "./types.ts";
 
-/** Bounded cost/latency for the single, optional enrichment fallback call. */
-const COMPANY_ENRICHMENT_TIMEOUT_MS = 30_000;
+/**
+ * Bounded cost/latency for the single, optional enrichment fallback call.
+ * Capped at 60s: past that, `enrichCompanyProfile` gracefully falls back to
+ * the assembled (un-enriched) profile rather than letting this optional stage
+ * eat into the downstream expansion-analysis budget.
+ */
+const COMPANY_ENRICHMENT_TIMEOUT_MS = 60_000;
 const COMPANY_ENRICHMENT_MAX_OUTPUT_TOKENS = 1500;
 
 /**

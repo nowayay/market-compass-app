@@ -5,6 +5,7 @@ import StatusCard from '../components/dashboard/StatusCard';
 import BusinessDetailsCard from '../components/dashboard/BusinessDetailsCard';
 import WorldMap from '../components/dashboard/WorldMap';
 import RankingList from '../components/dashboard/RankingList';
+import TopExpansionCard from '../components/dashboard/TopExpansionCard';
 import SwotQuadrants from '../components/dashboard/SwotQuadrants';
 import SourcesList from '../components/dashboard/SourcesList';
 
@@ -63,22 +64,25 @@ export default function DashboardScreen({
           />
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, marginBottom: 26, alignItems: 'start' }}>
-          <WorldMap
-            mapReady={mapReady}
-            worldFeatures={worldFeatures}
-            countries={countries}
-            onSelectCountry={onSelectCountry}
-            onOpenMapFull={onOpenMapFull}
-          />
-          <RankingList countries={countries} onSelectCountry={onSelectCountry} />
+        <div className="mc-analysis-grid">
+          <div className="mc-col-left">
+            <WorldMap
+              mapReady={mapReady}
+              worldFeatures={worldFeatures}
+              countries={countries}
+              onSelectCountry={onSelectCountry}
+              onOpenMapFull={onOpenMapFull}
+            />
+            <SwotQuadrants swot={dashboard.expansion.swot} />
+            <SourcesList sources={dashboard.sources} />
+          </div>
+          <div className="mc-col-right">
+            {countries.length > 0 && (
+              <TopExpansionCard country={countries[0]} onSelectCountry={onSelectCountry} />
+            )}
+            <RankingList countries={countries} onSelectCountry={onSelectCountry} />
+          </div>
         </div>
-
-        <div style={{ marginBottom: 26 }}>
-          <SwotQuadrants swot={dashboard.expansion.swot} />
-        </div>
-
-        <SourcesList sources={dashboard.sources} />
       </main>
     </div>
   );

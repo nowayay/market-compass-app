@@ -31,6 +31,35 @@ export function logPipelineStage(stage: PipelineStage, status: PipelineStageStat
 }
 
 /**
+ * Safe timing telemetry for the expansion-analysis stage. Emits ONLY numeric /
+ * boolean technical metadata — never a company name, prompt, model response,
+ * or any personal data:
+ * - `openAiCallMs`: wall-clock time spent inside the OpenAI call(s) themselves
+ *   (summed across the first attempt and, if it ran, the single schema-retry),
+ *   isolating network/model latency from local validation.
+ * - `retried`: whether the one automatic schema-correction retry was issued.
+ * - `outcome`: terminal disposition of the stage.
+ * Lets a production timeout be diagnosed precisely — e.g. distinguishing a slow
+ * OpenAI call from a retry that pushed the stage over its budget.
+ */
+export function logExpansionAnalysisCall(fields: {
+  openAiCallMs: number;
+  retried: boolean;
+  outcome: "completed" | "timeout" | "invalid" | "error";
+}): void {
+  console.info(
+    "[company-research-stage]",
+    JSON.stringify({
+      stage: "expansion-analysis",
+      status: "openai-call",
+      openAiCallMs: Math.round(fields.openAiCallMs),
+      retried: fields.retried,
+      outcome: fields.outcome,
+    }),
+  );
+}
+
+/**
  * Maps a caught failure to a stable, safe-to-log reason code — the error's
  * own stable `.code` (every typed error in this codebase carries one) when
  * present, else a generic fallback. Never the raw error/message.

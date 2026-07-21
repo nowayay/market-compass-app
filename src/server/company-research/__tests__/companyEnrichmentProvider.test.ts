@@ -17,7 +17,10 @@ import type {
   CreateEnrichmentResponseFn,
   OpenAiCompanyEnrichmentDeps,
 } from "../enrichment/createOpenAiCompanyEnrichmentProvider.ts";
-import { InvalidCompanyEnrichmentResponseError } from "../enrichment/errors.ts";
+import {
+  CompanyEnrichmentTimeoutError,
+  InvalidCompanyEnrichmentResponseError,
+} from "../enrichment/errors.ts";
 
 const INPUT = { legalName: "CD PROJEKT S.A.", krs: "0000006865" };
 
@@ -176,4 +179,20 @@ test("provider error carries no raw leak in a way tests can assert on", async ()
     throw new Error("raw openai detail cdprojekt");
   });
   await assert.rejects(() => p.enrich(INPUT));
+});
+
+// (timeout) the enrichment stage's own AbortSignal.timeout is the cutoff; a
+// call that outlives it maps to CompanyEnrichmentTimeoutError, issued exactly
+// once (transport retries are disabled — see the maxRetries: 0 test above), and
+// the caller (`enrichCompanyProfile`) then falls back to the un-enriched profile.
+test("(timeout) a call that outlives the stage timeout throws CompanyEnrichmentTimeoutError, only once", async () => {
+  let callCount = 0;
+  const fn: CreateEnrichmentResponseFn = (_params, options) => {
+    callCount++;
+    return new Promise((_resolve, reject) => {
+      options.signal?.addEventListener("abort", () => reject(new Error("aborted by signal")), { once: true });
+    });
+  };
+  await assert.rejects(() => provider(fn, 20).enrich(INPUT), CompanyEnrichmentTimeoutError);
+  assert.equal(callCount, 1);
 });

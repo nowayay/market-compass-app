@@ -13,10 +13,10 @@ const FIFTEEN_CODES = ["DE", "FR", "US", "GB", "NL", "PL", "BR", "ES", "IT", "SE
 
 function validSwot() {
   return {
-    strengths: ["Silna marka", "Dobra jakość produktów", "Elastyczny zespół"],
-    weaknesses: ["Mały zespół", "Ograniczony budżet", "Brak biura za granicą"],
-    opportunities: ["Rosnący popyt", "Nowe kanały online", "Wsparcie eksportowe"],
-    threats: ["Silna konkurencja", "Ryzyko walutowe", "Zmiany regulacyjne"],
+    strengths: ["Silna marka", "Dobra jakość produktów", "Elastyczny zespół", "Doświadczona kadra"],
+    weaknesses: ["Mały zespół", "Ograniczony budżet", "Brak biura za granicą", "Niska rozpoznawalność"],
+    opportunities: ["Rosnący popyt", "Nowe kanały online", "Wsparcie eksportowe", "Programy unijne"],
+    threats: ["Silna konkurencja", "Ryzyko walutowe", "Zmiany regulacyjne", "Wahania popytu"],
   };
 }
 
@@ -156,17 +156,35 @@ test("(expansion schema) NaN and Infinity scores are rejected", () => {
   }
 });
 
-test("(expansion schema) a SWOT category with fewer than 3 bullets is rejected", () => {
+test("(expansion schema) a SWOT category with fewer than 4 bullets is rejected", () => {
   const bad = validOutput();
-  bad.swot.weaknesses = ["Tylko jedna słabość"];
+  bad.swot.weaknesses = ["Tylko trzy", "słabości tutaj", "i nic więcej"];
   assert.throws(() => parseExpansionAnalysisOutput(bad), InvalidExpansionAnalysisResponseError);
 });
 
-test("(expansion schema) a SWOT category with more than 5 bullets is bounded to 5", () => {
+test("(expansion schema) a SWOT category with more than 4 bullets is bounded to exactly 4", () => {
   const out = validOutput();
   out.swot.strengths = ["A", "B", "C", "D", "E", "F", "G"];
   const result = parseExpansionAnalysisOutput(out);
-  assert.equal(result.swot.strengths.length, 5);
+  assert.equal(result.swot.strengths.length, 4);
+  assert.deepEqual(result.swot.strengths, ["A", "B", "C", "D"]);
+});
+
+test("(expansion schema) an over-long SWOT bullet is truncated to 180 chars, never rejected", () => {
+  const out = validOutput();
+  const longBullet = "x".repeat(300);
+  out.swot.strengths = [longBullet, "B", "C", "D"];
+  const result = parseExpansionAnalysisOutput(out);
+  assert.equal(result.swot.strengths[0].length, 180);
+});
+
+test("(expansion schema) an over-long country summary is truncated to 180 chars, never rejected", () => {
+  const out = validOutput();
+  out.rankedCountries[0] = { ...out.rankedCountries[0], summary: "y".repeat(500) };
+  const result = parseExpansionAnalysisOutput(out);
+  const country = result.rankedCountries.find((c) => c.summary.startsWith("y"));
+  assert.ok(country);
+  assert.equal(country.summary.length, 180);
 });
 
 test("(expansion schema) malformed JSON is rejected", () => {

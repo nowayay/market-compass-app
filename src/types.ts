@@ -28,6 +28,12 @@ export function emptyFormValues(): FormValues {
 export interface ChatMessage {
   role: "user" | "assistant";
   text: string;
+  /**
+   * True when this assistant reply was cut short (hit the model's output-token
+   * budget, or was interrupted after useful text arrived). The UI keeps the
+   * partial text and shows a neutral "Odpowiedź została skrócona" note.
+   */
+  truncated?: boolean;
 }
 
 /** A raw world-atlas country outline (SVG path + its ISO alpha-3 id). */

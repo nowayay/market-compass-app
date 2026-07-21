@@ -4,7 +4,11 @@ import {
   ExpansionAnalysisTimeoutError,
   InvalidExpansionAnalysisResponseError,
 } from "../errors.ts";
-import { logPipelineStage, stageErrorReasonCode } from "../logging/pipelineStageLog.ts";
+import {
+  logExpansionAnalysisCall,
+  logPipelineStage,
+  stageErrorReasonCode,
+} from "../logging/pipelineStageLog.ts";
 import { EXPANSION_ANALYSIS_JSON_SCHEMA, EXPANSION_ANALYSIS_SCHEMA_NAME, parseExpansionAnalysisOutput } from "./schema.ts";
 import type { ExpansionAnalysisInput, ExpansionAnalysisProvider } from "./types.ts";
 import type { ExpansionAnalysis } from "../../../contracts/companyDashboard.ts";
@@ -16,9 +20,19 @@ import type { ExpansionAnalysis } from "../../../contracts/companyDashboard.ts";
  * thin server-only wrapper supplies the real client.
  */
 
+/**
+ * Transport-level retries for a single expansion-analysis OpenAI call: ZERO.
+ * A timeout or transport failure must NEVER be auto-retried — re-issuing an
+ * identical, already-slow call would only stack latency on top of a stage that
+ * already has a hard 180s budget. The ONLY retry this provider ever performs is
+ * the single schema-correction retry below, triggered exclusively by a
+ * structurally invalid (not a timed-out or failed) response.
+ */
+export const EXPANSION_ANALYSIS_MAX_RETRIES = 0;
+
 export type CreateResponseFn = (
   params: OpenAI.Responses.ResponseCreateParamsNonStreaming,
-  options: { signal?: AbortSignal },
+  options: { signal?: AbortSignal; maxRetries: number },
 ) => Promise<unknown>;
 
 export interface OpenAiExpansionAnalysisDeps {
@@ -37,8 +51,12 @@ const EXPANSION_ANALYSIS_INSTRUCTIONS = [
   "Rules:",
   "- Recommend EXACTLY 15 distinct countries, each with a real ISO 3166-1 alpha-2 code.",
   "- Each country score is 0-100; higher means a better expansion fit.",
-  "- Provide 3 to 5 concise bullet points for each SWOT category (strengths,",
+  "- Each country summary is a single concise sentence of AT MOST 180 characters.",
+  "- Provide EXACTLY 4 concise bullet points for each SWOT category (strengths,",
   "  weaknesses, opportunities, threats) about the company's expansion potential.",
+  "- Every SWOT bullet is AT MOST 180 characters.",
+  "- Return ONLY the fields defined in the schema — no preamble, no extra prose,",
+  "  no commentary, no markdown; keep every text field terse.",
   "- Never invent specific financial figures (revenue, exact costs, exact budgets).",
   "- Never give legal or tax guarantees or specific legal/tax advice.",
   "- NEVER include information about natural persons (owners, board members,",
@@ -64,10 +82,18 @@ const EXPANSION_ANALYSIS_RETRY_INSTRUCTIONS = `${EXPANSION_ANALYSIS_INSTRUCTIONS
 Your previous response did not satisfy the required structure. Before answering again, double-check that:
 - there are EXACTLY 15 ranked countries, all with distinct ISO 3166-1 alpha-2 codes,
 - every score is a plain number from 0 to 100 inclusive,
+- each SWOT category has EXACTLY 4 bullets, and every bullet and every country summary is at most 180 characters,
 - the JSON matches the provided schema exactly, with no missing or extra fields.`;
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
+}
+
+/** Maps a terminal failure to the safe outcome label used in timing telemetry. */
+function classifyOutcome(error: unknown): "timeout" | "invalid" | "error" {
+  if (error instanceof ExpansionAnalysisTimeoutError) return "timeout";
+  if (error instanceof InvalidExpansionAnalysisResponseError) return "invalid";
+  return "error";
 }
 
 function hasRefusal(response: Record<string, unknown>): boolean {
@@ -84,12 +110,19 @@ function hasRefusal(response: Record<string, unknown>): boolean {
   return false;
 }
 
-/** Runs exactly one OpenAI call + validation pass; never retries by itself. */
+/**
+ * Runs exactly one OpenAI call + validation pass; never retries by itself.
+ * `onOpenAiCall` receives the wall-clock duration of the OpenAI call ITSELF
+ * (excluding local validation), for timing telemetry — it is invoked whether
+ * the call resolves or rejects. Transport-level retries are disabled
+ * (`maxRetries: 0`), so a timeout/transport failure surfaces immediately.
+ */
 async function runOneAttempt(
   deps: OpenAiExpansionAnalysisDeps,
   input: ExpansionAnalysisInput,
   instructions: string,
   signal: AbortSignal,
+  onOpenAiCall: (ms: number) => void,
 ): Promise<ExpansionAnalysis> {
   const params: OpenAI.Responses.ResponseCreateParamsNonStreaming = {
     model: deps.model,
@@ -107,7 +140,13 @@ async function runOneAttempt(
     max_output_tokens: deps.maxOutputTokens,
   };
 
-  const response = await deps.createResponse(params, { signal });
+  const startedAt = Date.now();
+  let response: unknown;
+  try {
+    response = await deps.createResponse(params, { signal, maxRetries: EXPANSION_ANALYSIS_MAX_RETRIES });
+  } finally {
+    onOpenAiCall(Date.now() - startedAt);
+  }
 
   const record = asRecord(response);
   if (!record) {
@@ -137,9 +176,17 @@ export function createOpenAiExpansionAnalysisProvider(
       const timeout = AbortSignal.timeout(deps.timeoutMs);
       const combined = options?.signal ? AbortSignal.any([options.signal, timeout]) : timeout;
 
+      // Timing telemetry accumulated across the (at most two) attempts, always
+      // emitted on the terminal path so a production timeout can be diagnosed.
+      let openAiCallMs = 0;
+      let retried = false;
+      const recordCall = (ms: number) => {
+        openAiCallMs += ms;
+      };
+
       async function attempt(instructions: string): Promise<ExpansionAnalysis> {
         try {
-          return await runOneAttempt(deps, input, instructions, combined);
+          return await runOneAttempt(deps, input, instructions, combined, recordCall);
         } catch (cause) {
           // A structural/validation failure is retryable by the caller below —
           // re-throw it unchanged (it already carries a safe, stable code).
@@ -151,18 +198,27 @@ export function createOpenAiExpansionAnalysisProvider(
       }
 
       try {
-        return await attempt(EXPANSION_ANALYSIS_INSTRUCTIONS);
-      } catch (firstError) {
-        // Company research is never re-run here: a retry only re-issues this
-        // same AI call with a short corrective instruction — nothing upstream
-        // (identification, KRS, web research) repeats. Only a structural
-        // validation failure is retried; transport/timeout/abort failures are
-        // not, since re-prompting cannot fix those. At most one retry ever runs.
-        if (!(firstError instanceof InvalidExpansionAnalysisResponseError) || combined.aborted) {
-          throw firstError;
+        let result: ExpansionAnalysis;
+        try {
+          result = await attempt(EXPANSION_ANALYSIS_INSTRUCTIONS);
+        } catch (firstError) {
+          // Company research is never re-run here: a retry only re-issues this
+          // same AI call with a short corrective instruction — nothing upstream
+          // (identification, KRS, web research) repeats. Only a structural
+          // validation failure is retried; transport/timeout/abort failures are
+          // not, since re-prompting cannot fix those. At most one retry ever runs.
+          if (!(firstError instanceof InvalidExpansionAnalysisResponseError) || combined.aborted) {
+            throw firstError;
+          }
+          retried = true;
+          logPipelineStage("expansion-analysis", "retry", stageErrorReasonCode(firstError));
+          result = await attempt(EXPANSION_ANALYSIS_RETRY_INSTRUCTIONS);
         }
-        logPipelineStage("expansion-analysis", "retry", stageErrorReasonCode(firstError));
-        return await attempt(EXPANSION_ANALYSIS_RETRY_INSTRUCTIONS);
+        logExpansionAnalysisCall({ openAiCallMs, retried, outcome: "completed" });
+        return result;
+      } catch (error) {
+        logExpansionAnalysisCall({ openAiCallMs, retried, outcome: classifyOutcome(error) });
+        throw error;
       }
     },
   };

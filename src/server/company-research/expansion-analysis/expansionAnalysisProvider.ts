@@ -9,9 +9,15 @@ import type { ExpansionAnalysisProvider } from "./types.ts";
  * ranking (score/summary/opportunities/risks per country, plus the 4-category
  * SWOT) needs materially more output budget than the earlier 5-country
  * version did; the timeout also covers the provider's own single automatic
- * retry, so it is not simply the per-call budget.
+ * schema-correction retry, so it is not simply the per-call budget.
+ *
+ * Budget: 180s. It MUST stay strictly below the OpenAI client's request
+ * timeout (`ai/client.ts`, 240s) so THIS stage's own AbortSignal.timeout is the
+ * binding cutoff, and below the route's maxDuration (300s) and the browser's
+ * request timeout (290s). Transport retries are disabled inside the provider,
+ * so a timeout ends the stage immediately instead of being re-issued.
  */
-const EXPANSION_ANALYSIS_TIMEOUT_MS = 60_000;
+const EXPANSION_ANALYSIS_TIMEOUT_MS = 180_000;
 const EXPANSION_ANALYSIS_MAX_OUTPUT_TOKENS = 6000;
 
 /**
@@ -39,7 +45,8 @@ export function createExpansionAnalysisProvider(): ExpansionAnalysisProvider {
           const { model } = getAIConfig();
           const client = getOpenAIClient();
           inner = createOpenAiExpansionAnalysisProvider({
-            createResponse: (params, opts) => client.responses.create(params, opts),
+            createResponse: (params, opts) =>
+              client.responses.create(params, { signal: opts.signal, maxRetries: opts.maxRetries }),
             model,
             timeoutMs: EXPANSION_ANALYSIS_TIMEOUT_MS,
             maxOutputTokens: EXPANSION_ANALYSIS_MAX_OUTPUT_TOKENS,

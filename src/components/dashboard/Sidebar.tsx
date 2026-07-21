@@ -16,9 +16,9 @@ export default function Sidebar({
 }) {
   return (
     <aside style={{ width: 264, flexShrink: 0, background: '#FFFFFF', borderRight: '1px solid #EDEFF2', padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: 22, alignSelf: 'stretch' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <CompassLogo size={38} />
-        <div style={{ fontSize: 19, fontWeight: 800, letterSpacing: '-0.02em', color: '#13294F' }}>Market<span style={{ color: '#16A34A' }}>Compass</span></div>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+        <CompassLogo size={72} />
+        <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.02em', color: '#13294F', textAlign: 'center' }}>Market<span style={{ color: '#16A34A' }}>Compass</span></div>
       </div>
 
       <div style={{ border: '1px solid #EDEFF2', borderRadius: 16, padding: 18, boxShadow: '0 1px 2px rgba(16,24,40,0.04)' }}>
