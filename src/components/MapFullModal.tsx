@@ -1,18 +1,20 @@
-import type { DecoratedResult, WorldFeature } from "../types";
+import type { DecoratedCountry, WorldFeature } from "../types";
 import { buildMapFeatures, MapLegend } from './dashboard/WorldMap';
 
 export default function MapFullModal({
   mapReady,
   worldFeatures,
-  results,
+  countries,
+  onSelectCountry,
   onClose,
 }: {
   mapReady: boolean;
   worldFeatures: WorldFeature[];
-  results: DecoratedResult[];
+  countries: DecoratedCountry[];
+  onSelectCountry: (countryCode: string) => void;
   onClose: () => void;
 }) {
-  const mapFeatures = buildMapFeatures(worldFeatures, results);
+  const mapFeatures = buildMapFeatures(worldFeatures, countries);
   const stopProp = (e: React.MouseEvent) => e.stopPropagation();
 
   return (
@@ -26,7 +28,18 @@ export default function MapFullModal({
           <div style={{ width: '100%', background: '#F3F4F6', borderRadius: 12, overflow: 'hidden' }}>
             <svg viewBox="0 0 960 470" style={{ width: '100%', display: 'block' }}>
               {mapFeatures.map((mf, i) => (
-                <path key={`${mf.iso3}-${i}`} d={mf.d} fill={mf.fill} stroke="#FFFFFF" strokeWidth="0.6" onClick={mf.onClick} className="mc-map-path" style={{ cursor: mf.cursor }} />
+                <path
+                  key={`${mf.iso3}-${i}`}
+                  d={mf.d}
+                  fill={mf.fill}
+                  stroke="#FFFFFF"
+                  strokeWidth="0.6"
+                  onClick={mf.countryCode ? () => onSelectCountry(mf.countryCode!) : undefined}
+                  className="mc-map-path"
+                  style={{ cursor: mf.cursor }}
+                >
+                  {mf.countryCode && <title>{mf.countryCode}</title>}
+                </path>
               ))}
             </svg>
           </div>

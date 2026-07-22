@@ -1,17 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
-import type { ChangeEvent, MouseEvent } from 'react';
+import type { ChangeEvent } from 'react';
 import { geoNaturalEarth1, geoPath } from 'd3-geo';
 import type { FeatureCollection } from 'geojson';
-import {
-  DEFAULT_PROFILES,
-  analyzeAllCountries,
-  computeCompanyScore,
-  generateSWOT,
-  inferCompanyProfile,
-} from './data/marketData';
-import { decorateResult } from './lib/derive';
+import { researchCompany, CompanyResearchClientError } from './lib/company-research/client';
+import { loadProfiles, profileKeyOf, removeProfile, saveProfiles, upsertProfile } from './lib/profileStorage';
+import { decorateCountry, buildChatCompanyContext } from './lib/derive';
 import {
   ChatClientError,
   isAbortError,
@@ -20,97 +15,77 @@ import {
   MAX_MESSAGE_CHARS,
 } from './lib/ai/chatClient';
 import type { ChatRequestMessage } from './lib/ai/chatClient';
-import type { AppState, ChatMessage, Company, Profile } from './types';
-import ProfileSelectScreen from './screens/ProfileSelectScreen';
+import type { AppState, ChatMessage, FormValues, SearchQuery } from './types';
+import { emptyFormValues } from './types';
 import CompanyFormScreen from './screens/CompanyFormScreen';
+import ConfirmCandidateScreen from './screens/ConfirmCandidateScreen';
 import AnalyzingScreen from './screens/AnalyzingScreen';
 import DashboardScreen from './screens/DashboardScreen';
-import NewProfileModal from './components/NewProfileModal';
+import ProfilesScreen from './screens/ProfilesScreen';
 import MapFullModal from './components/MapFullModal';
 import ChatModal from './components/ChatModal';
 import CountryDetailModal from './components/CountryDetailModal';
 
-const STORAGE_KEY = 'marketcompass_profiles_v1';
-
-function emptyCompany(): Company {
-  return { name: '', industry: '', country: '', foundedYear: '', employees: '', products: '', customerType: '', annualRevenue: '', expansionBudget: '', regions: [], riskLevel: '', goal: '', krs: '' };
-}
-
-// Next.js pre-renders client components on the server too, where `localStorage`
-// doesn't exist — so the initial render must not depend on it. The real,
-// possibly-persisted profile list is loaded client-side in a useEffect below.
-function persist(profiles: Profile[]) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(profiles)); } catch { /* ignore */ }
-}
-
-const ANALYZE_STEP_LABELS = [
-  'Wyszukiwanie firmy w rejestrach i źródłach publicznych…',
-  'Pobieranie danych firmy i profilu działalności…',
-  'Ocena wskaźników gospodarczych 30 rynków…',
-  'Dopasowanie strategii wejścia…',
-  'Generowanie rekomendacji AI…',
-];
-
 const initialState: AppState = {
-  screen: 'profiles',
-  profiles: DEFAULT_PROFILES.map((p) => ({ ...p })),
-  activeProfileId: null,
-  company: emptyCompany(),
-  results: [],
-  swot: null,
-  companyScore: 0,
-  selectedCountryId: null,
-  newProfileOpen: false,
-  newProfileName: '',
-  renamingId: null,
-  renameValue: '',
-  menuOpenId: null,
-  deleteConfirmId: null,
-  nameMissing: false,
-  analyzeStep: 0,
+  screen: 'form',
+  form: emptyFormValues(),
+  formError: null,
+  apiError: null,
+  searchQuery: null,
+  candidates: [],
+  dashboard: null,
+  selectedCountryCode: null,
   showAllRanking: false,
-  mapZoom: 1,
   mapFull: false,
   mapReady: false,
   worldFeatures: [],
-  profileMenuOpen: false,
   chatOpen: false,
   chatMessages: [],
   chatInput: '',
   chatGenerating: false,
   chatError: null,
+  profiles: [],
+  profileMenuOpenId: null,
+  profileToDeleteId: null,
 };
 
 const CHAT_GREETING =
-  'Cześć! Jestem asystentem MarketCompass. Zapytaj mnie o dowolny rynek, ryzyko, strategię ekspansji lub o informacje na temat danego przedsiębiorstwa.\n';
+  'Cześć! Jestem asystentem MarketCompass. Zapytaj mnie o dowolny rynek, ryzyko, strategię ekspansji lub o Twoją firmę.\n';
 const CHAT_GENERIC_ERROR =
   'Nie udało się uzyskać odpowiedzi MarketCompassAI. Spróbuj ponownie.';
+const GENERIC_RESEARCH_ERROR = 'Nie udało się wykonać researchu firmy. Spróbuj ponownie.';
+// Client-side ceiling for the whole research request. Kept just under the
+// route's serverless maxDuration (300s) so the browser gives up slightly after
+// the server would, surfacing a clear message instead of a hung spinner.
+const RESEARCH_REQUEST_TIMEOUT_MS = 290_000;
+const RESEARCH_TIMEOUT_ERROR =
+  'Analiza trwała zbyt długo i została przerwana. Spróbuj ponownie za chwilę.';
 
 export default function App() {
   const [state, setState] = useState<AppState>(initialState);
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  // AbortController for the in-flight chat generation, if any. Kept in a ref so
-  // it survives re-renders and doubles as the "a generation is active" guard.
   const chatAbortRef = useRef<AbortController | null>(null);
-  // Monotonic identity of the active generation. A generation only mutates chat
-  // state while its id still matches; closing/superseding a request bumps this
-  // so late deltas or errors from an obsolete request are ignored.
   const chatGenRef = useRef(0);
+  const researchAbortRef = useRef<AbortController | null>(null);
 
   const patch = (updates: Partial<AppState> | ((s: AppState) => Partial<AppState>)) =>
     setState((s) => ({ ...s, ...(typeof updates === 'function' ? updates(s) : updates) }));
 
-  // Abort any active chat request when the app unmounts.
-  useEffect(() => () => chatAbortRef.current?.abort(), []);
-
-  // Client-only: pick up any previously saved profiles from localStorage.
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) patch({ profiles: JSON.parse(raw) });
-    } catch { /* ignore */ }
+    return () => {
+      chatAbortRef.current?.abort();
+      researchAbortRef.current?.abort();
+    };
+  }, []);
+
+  // Client-only: restore saved company profiles (migrating the legacy
+  // single-dashboard slot on first read, if needed). With at least one saved
+  // profile, land on the profile picker instead of the search form.
+  useEffect(() => {
+    const profiles = loadProfiles();
+    patch(profiles.length > 0 ? { profiles, screen: 'profiles' } : { profiles });
   }, []);
 
   useEffect(() => {
@@ -133,107 +108,161 @@ export default function App() {
     return () => { cancelled = true; };
   }, []);
 
-  // ---- profile select ----
-  function enterProfile(p: Profile | { id: string; name: string }) {
-    if (p.id === 'guest') {
-      patch({ screen: 'form', activeProfileId: 'guest', company: emptyCompany() });
-      return;
+  const updateField = (field: keyof FormValues, value: string) =>
+    patch((s) => ({ form: { ...s.form, [field]: value }, formError: null }));
+
+  function parsedFoundedYear(): number | undefined {
+    const raw = stateRef.current.form.foundedYear.trim();
+    if (!raw) return undefined;
+    const year = Number(raw);
+    return Number.isInteger(year) ? year : undefined;
+  }
+
+  function buildSearchQuery(): SearchQuery {
+    return {
+      name: stateRef.current.form.name.trim(),
+      foundedYear: parsedFoundedYear(),
+      krs: stateRef.current.form.krs.trim() || undefined,
+    };
+  }
+
+  // `query` is always the ORIGINAL search input (frozen at submit time, see
+  // `submitForm`/`selectCandidate`) — a candidate confirmation reuses it
+  // verbatim rather than re-reading `state.form`, which may no longer be what
+  // was actually searched. Guards against a double-click / overlapping
+  // request: a second call while one is already in flight is a no-op.
+  async function runResearch(query: SearchQuery, selectedCandidateId?: string) {
+    if (researchAbortRef.current) return;
+    const controller = new AbortController();
+    researchAbortRef.current = controller;
+    // Combine the user-cancellation controller with a hard request timeout, so
+    // a stuck request is abandoned client-side rather than spinning forever.
+    // The two aborts are told apart below via each signal's `.aborted` flag.
+    const timeoutSignal = AbortSignal.timeout(RESEARCH_REQUEST_TIMEOUT_MS);
+    const signal = AbortSignal.any([controller.signal, timeoutSignal]);
+    patch({ screen: 'loading', apiError: null });
+
+    try {
+      const result = await researchCompany({ query, selectedCandidateId }, signal);
+
+      if (result.status === 'completed') {
+        // Adds a new profile, or updates the existing one for this company's
+        // KRS in place — earlier profiles are never removed by this.
+        const profiles = upsertProfile(stateRef.current.profiles, result, new Date().toISOString());
+        saveProfiles(profiles);
+        patch({ screen: 'dashboard', dashboard: result, candidates: [], apiError: null, profiles });
+        return;
+      }
+      if (result.status === 'needs_confirmation') {
+        patch({ screen: 'confirm', candidates: result.candidates, apiError: null });
+        return;
+      }
+      // not_found
+      patch({ screen: 'form', apiError: result.message, candidates: [] });
+    } catch (error) {
+      // A user-initiated cancellation (backToForm / overlapping submit) stays
+      // silent; only the request timeout surfaces its own message.
+      if (controller.signal.aborted) return;
+      if (timeoutSignal.aborted) {
+        patch({
+          screen: stateRef.current.candidates.length > 0 ? 'confirm' : 'form',
+          apiError: RESEARCH_TIMEOUT_ERROR,
+        });
+        return;
+      }
+      if (isAbortError(error)) return;
+      const message = error instanceof CompanyResearchClientError ? error.message : GENERIC_RESEARCH_ERROR;
+      patch({ screen: stateRef.current.candidates.length > 0 ? 'confirm' : 'form', apiError: message });
+    } finally {
+      if (researchAbortRef.current === controller) researchAbortRef.current = null;
     }
-    const profile = p as Profile;
-    if (profile.hasAnalysis && profile.company) {
-      const results = analyzeAllCountries(profile.company);
-      const swot = generateSWOT(profile.company, results);
-      const score = computeCompanyScore(profile.company, results);
-      patch({ screen: 'dashboard', activeProfileId: profile.id, company: profile.company, results, swot, companyScore: score });
-    } else {
-      patch({ screen: 'form', activeProfileId: profile.id, company: profile.company || emptyCompany() });
-    }
   }
-
-  const openNewProfile = () => patch({ newProfileOpen: true, newProfileName: '' });
-  const cancelNewProfile = () => patch({ newProfileOpen: false });
-  const onNewProfileNameChange = (e: ChangeEvent<HTMLInputElement>) => patch({ newProfileName: e.target.value });
-  function confirmNewProfile() {
-    const name = stateRef.current.newProfileName.trim() || 'Nowa firma';
-    const id = 'p' + Date.now();
-    const colors = ['#16A34A', '#2563EB', '#F59E0B', '#6B7280'];
-    const profile: Profile = { id, name, avatarColor: colors[stateRef.current.profiles.length % colors.length], lastActive: 'teraz', hasAnalysis: false, company: null };
-    const profiles = [...stateRef.current.profiles, profile];
-    persist(profiles);
-    patch({ profiles, newProfileOpen: false, screen: 'form', activeProfileId: id, company: emptyCompany() });
-  }
-
-  const toggleMenu = (id: string) => patch((s) => ({ menuOpenId: s.menuOpenId === id ? null : id }));
-  const startRename = (p: Profile) => patch({ renamingId: p.id, renameValue: p.name, menuOpenId: null });
-  const cancelRename = () => patch({ renamingId: null });
-  const onRenameChange = (e: ChangeEvent<HTMLInputElement>) => patch({ renameValue: e.target.value });
-  function confirmRename() {
-    const profiles = stateRef.current.profiles.map((p) => (p.id === stateRef.current.renamingId ? { ...p, name: stateRef.current.renameValue.trim() || p.name } : p));
-    persist(profiles);
-    patch({ profiles, renamingId: null });
-  }
-  const askDelete = (id: string) => patch({ deleteConfirmId: id, menuOpenId: null });
-  const cancelDelete = () => patch({ deleteConfirmId: null });
-  function confirmDelete() {
-    const profiles = stateRef.current.profiles.filter((p) => p.id !== stateRef.current.deleteConfirmId);
-    persist(profiles);
-    patch({ profiles, deleteConfirmId: null });
-  }
-
-  // ---- company form ----
-  const updateField = (field: keyof Company, value: string) => patch((s) => ({ company: { ...s.company, [field]: value } }));
-  const backToProfiles = () => patch({ screen: 'profiles', menuOpenId: null, selectedCountryId: null, profileMenuOpen: false });
-  const editProfile = () => patch({ screen: 'form', profileMenuOpen: false });
 
   function submitForm() {
-    if (!stateRef.current.company.name || !stateRef.current.company.name.trim()) {
-      patch({ nameMissing: true });
+    if (!stateRef.current.form.name.trim()) {
+      patch({ formError: 'Podaj nazwę firmy, aby rozpocząć wyszukiwanie.' });
       return;
     }
-    const inferred = inferCompanyProfile({
-      name: stateRef.current.company.name,
-      foundedYear: stateRef.current.company.foundedYear,
-      krs: stateRef.current.company.krs,
+    const query = buildSearchQuery();
+    patch({ searchQuery: query });
+    runResearch(query);
+  }
+
+  // Reuses the exact query that produced the currently shown candidate list —
+  // never re-derived from (and never compared against) the live form state.
+  function selectCandidate(candidateId: string) {
+    const query = stateRef.current.searchQuery;
+    if (!query) return;
+    runResearch(query, candidateId);
+  }
+
+  function backToForm() {
+    researchAbortRef.current?.abort();
+    researchAbortRef.current = null;
+    patch({ screen: 'form', candidates: [], apiError: null });
+  }
+
+  // Goes to the search form for a new company. Earlier saved profiles are
+  // never touched — they stay in localStorage and in `state.profiles`.
+  function startNewAnalysis() {
+    patch({
+      screen: 'form',
+      form: emptyFormValues(),
+      formError: null,
+      apiError: null,
+      candidates: [],
+      dashboard: null,
+      selectedCountryCode: null,
     });
-    patch({ screen: 'analyzing', analyzeStep: 0, nameMissing: false, company: inferred });
-    runAnalysis();
   }
 
-  function runAnalysis() {
-    const total = 5;
-    const tick = (i: number) => {
-      patch({ analyzeStep: i });
-      if (i < total) {
-        setTimeout(() => tick(i + 1), 650);
-      } else {
-        setTimeout(() => {
-          const company = stateRef.current.company;
-          const results = analyzeAllCountries(company);
-          const swot = generateSWOT(company, results);
-          const score = computeCompanyScore(company, results);
-          const activeId = stateRef.current.activeProfileId;
-          let profiles = stateRef.current.profiles;
-          if (activeId && activeId !== 'guest') {
-            profiles = profiles.map((p) => (p.id === activeId ? { ...p, hasAnalysis: true, company, lastActive: 'teraz' } : p));
-            persist(profiles);
-          }
-          patch({ screen: 'dashboard', results, swot, companyScore: score, profiles });
-        }, 500);
-      }
-    };
-    setTimeout(() => tick(1), 650);
+  // ---- company profiles ----
+  function openProfiles() {
+    patch({ screen: 'profiles' });
   }
 
-  // ---- dashboard ----
-  const openCountry = (id: string) => patch({ selectedCountryId: id });
-  const closeCountry = () => patch({ selectedCountryId: null });
-  const toggleAllRanking = (e?: MouseEvent) => { if (e) e.preventDefault(); patch((s) => ({ showAllRanking: !s.showAllRanking })); };
-  const openMapFull = (e?: MouseEvent) => { if (e) e.preventDefault(); patch({ mapFull: true }); };
+  function selectProfile(id: string) {
+    const entry = stateRef.current.profiles.find((p) => p.id === id);
+    if (!entry) return;
+    patch({ screen: 'dashboard', dashboard: entry.dashboard, selectedCountryCode: null });
+  }
+
+  function toggleProfileMenu(id: string) {
+    patch((s) => ({ profileMenuOpenId: s.profileMenuOpenId === id ? null : id }));
+  }
+
+  function closeProfileMenu() {
+    patch({ profileMenuOpenId: null });
+  }
+
+  function requestDeleteProfile(id: string) {
+    patch({ profileMenuOpenId: null, profileToDeleteId: id });
+  }
+
+  function cancelDeleteProfile() {
+    patch({ profileToDeleteId: null });
+  }
+
+  function confirmDeleteProfile() {
+    const id = stateRef.current.profileToDeleteId;
+    if (!id) return;
+    const profiles = removeProfile(stateRef.current.profiles, id);
+    saveProfiles(profiles);
+    patch((s) => ({
+      profiles,
+      profileToDeleteId: null,
+      // Never leave the currently open dashboard pointing at a deleted profile.
+      dashboard: s.dashboard && profileKeyOf(s.dashboard) === id ? null : s.dashboard,
+    }));
+  }
+
+  // ---- dashboard: map + ranking ----
+  const selectCountry = (countryCode: string) => patch({ selectedCountryCode: countryCode });
+  const closeCountry = () => patch({ selectedCountryCode: null });
+  const openMapFull = (e?: React.MouseEvent) => { if (e) e.preventDefault(); patch({ mapFull: true }); };
   const closeMapFull = () => patch({ mapFull: false });
-  const toggleProfileMenu = () => patch((s) => ({ profileMenuOpen: !s.profileMenuOpen }));
 
-  // Append a streamed delta to the current (last) assistant placeholder,
-  // leaving every earlier message untouched.
+  // ---- chat ----
   function appendAssistantDelta(delta: string) {
     setState((s) => {
       const msgs = s.chatMessages.slice();
@@ -245,7 +274,6 @@ export default function App() {
     });
   }
 
-  // Drop a trailing assistant placeholder that never received any text.
   function dropEmptyPlaceholder(msgs: ChatMessage[]): ChatMessage[] {
     const last = msgs[msgs.length - 1];
     if (last && last.role === 'assistant' && last.text.length === 0) {
@@ -254,13 +282,27 @@ export default function App() {
     return msgs;
   }
 
-  // Core send path shared by manual input and example questions. `baseMessages`
-  // is the conversation to build on, passed explicitly to avoid reading stale
-  // state right after opening the modal.
+  /** True when the last message is an assistant reply that already has content. */
+  function lastAssistantHasText(msgs: ChatMessage[]): boolean {
+    const last = msgs[msgs.length - 1];
+    return !!last && last.role === 'assistant' && last.text.trim().length > 0;
+  }
+
+  /** Flags the last assistant reply as truncated, so the UI shows the neutral note. */
+  function markLastAssistantTruncated(msgs: ChatMessage[]): ChatMessage[] {
+    const last = msgs[msgs.length - 1];
+    if (last && last.role === 'assistant' && last.text.trim().length > 0) {
+      const copy = msgs.slice();
+      copy[copy.length - 1] = { ...last, truncated: true };
+      return copy;
+    }
+    return msgs;
+  }
+
   async function startGeneration(rawQuestion: string, baseMessages: ChatMessage[]) {
     const question = rawQuestion.trim();
     if (!question || question.length > MAX_MESSAGE_CHARS) return;
-    if (chatAbortRef.current) return; // a generation is already running
+    if (chatAbortRef.current) return;
 
     const requestHistory: ChatRequestMessage[] = prepareRequestHistory(
       baseMessages.map((m) => ({ role: m.role, content: m.text })),
@@ -283,47 +325,47 @@ export default function App() {
       chatError: null,
     });
 
+    const companyContext = stateRef.current.dashboard
+      ? buildChatCompanyContext(stateRef.current.dashboard)
+      : undefined;
+
     try {
-      await streamChat(
+      const status = await streamChat(
         requestHistory,
         {
           onTextDelta: (delta) => {
-            // Ignore deltas from a superseded/closed generation.
             if (chatGenRef.current === genId) appendAssistantDelta(delta);
           },
         },
         controller.signal,
+        companyContext,
       );
-      if (chatGenRef.current === genId) patch({ chatGenerating: false });
-    } catch (err) {
-      // An obsolete generation must not touch chat state that now belongs to a
-      // newer generation (or a freshly reopened chat).
       if (chatGenRef.current !== genId) return;
-      if (isAbortError(err)) {
-        // User-initiated stop: keep any streamed text, drop an empty bubble,
-        // and show no error.
-        setState((s) => ({
-          ...s,
-          chatMessages: dropEmptyPlaceholder(s.chatMessages),
-          chatGenerating: false,
-        }));
-      } else {
-        const message = err instanceof ChatClientError ? err.message : CHAT_GENERIC_ERROR;
-        setState((s) => ({
-          ...s,
-          chatMessages: dropEmptyPlaceholder(s.chatMessages),
-          chatGenerating: false,
-          chatError: message,
-        }));
-      }
+      // A truncated reply keeps its partial text; only add the neutral note.
+      setState((s) => ({
+        ...s,
+        chatMessages: status === 'truncated' ? markLastAssistantTruncated(s.chatMessages) : s.chatMessages,
+        chatGenerating: false,
+      }));
+    } catch (err) {
+      if (chatGenRef.current !== genId) return;
+      // Whether it was an abort or a stream error: if useful text already
+      // arrived, keep it and show the neutral "shortened" note instead of a red
+      // error. Only a truly empty reply surfaces the full error.
+      setState((s) => {
+        if (lastAssistantHasText(s.chatMessages)) {
+          return { ...s, chatMessages: markLastAssistantTruncated(s.chatMessages), chatGenerating: false };
+        }
+        const base = { ...s, chatMessages: dropEmptyPlaceholder(s.chatMessages), chatGenerating: false };
+        if (isAbortError(err)) return base;
+        return { ...base, chatError: err instanceof ChatClientError ? err.message : CHAT_GENERIC_ERROR };
+      });
     } finally {
       if (chatAbortRef.current === controller) chatAbortRef.current = null;
     }
   }
 
   function openChat(question: string | null) {
-    // Reuse the current session conversation; only seed the greeting when the
-    // chat is empty so closing and reopening preserves history.
     const existing = stateRef.current.chatMessages;
     const base: ChatMessage[] =
       existing.length > 0 ? existing : [{ role: 'assistant', text: CHAT_GREETING }];
@@ -334,9 +376,6 @@ export default function App() {
     }
   }
   function closeChat() {
-    // Abort and invalidate the active generation so late deltas/errors cannot
-    // mutate the conversation after (or when) the chat is reopened. Preserve any
-    // streamed text and drop a still-empty placeholder.
     chatAbortRef.current?.abort();
     chatAbortRef.current = null;
     chatGenRef.current++;
@@ -356,65 +395,61 @@ export default function App() {
     chatAbortRef.current?.abort();
   }
 
-  const decoratedResults = state.results.map((r) => decorateResult(r, openCountry));
-  const selectedResult = decoratedResults.find((r) => r.id === state.selectedCountryId) || null;
+  const decoratedCountries = state.dashboard
+    ? state.dashboard.expansion.rankedCountries.map(decorateCountry)
+    : [];
+  const selectedCountry = decoratedCountries.find((c) => c.countryCode === state.selectedCountryCode) || null;
 
   return (
     <div style={{ minHeight: '100vh', width: '100%', background: '#FAF8F4', color: '#1F2937', position: 'relative', overflowX: 'hidden' }}>
-      {state.screen === 'profiles' && (
-        <ProfileSelectScreen
-          state={state}
-          onEnterProfile={enterProfile}
-          onOpenNewProfile={openNewProfile}
-          onToggleMenu={toggleMenu}
-          onStartRename={startRename}
-          onCancelRename={cancelRename}
-          onRenameChange={onRenameChange}
-          onConfirmRename={confirmRename}
-          onAskDelete={askDelete}
-          onCancelDelete={cancelDelete}
-          onConfirmDelete={confirmDelete}
-        />
-      )}
-
       {state.screen === 'form' && (
         <CompanyFormScreen
-          company={state.company}
-          nameMissing={state.nameMissing}
+          form={state.form}
+          formError={state.formError}
+          apiError={state.apiError}
           onFieldChange={updateField}
-          onBackToProfiles={backToProfiles}
           onSubmitForm={submitForm}
         />
       )}
 
-      {state.screen === 'analyzing' && (
-        <AnalyzingScreen
-          stepLabel={ANALYZE_STEP_LABELS[Math.min(state.analyzeStep, ANALYZE_STEP_LABELS.length - 1)]}
-          progressPct={Math.round((state.analyzeStep / 5) * 100)}
+      {state.screen === 'confirm' && (
+        <ConfirmCandidateScreen
+          candidates={state.candidates}
+          apiError={state.apiError}
+          onSelectCandidate={selectCandidate}
+          onBack={backToForm}
         />
       )}
 
-      {state.screen === 'dashboard' && (
+      {state.screen === 'loading' && <AnalyzingScreen />}
+
+      {state.screen === 'profiles' && (
+        <ProfilesScreen
+          profiles={state.profiles}
+          openMenuId={state.profileMenuOpenId}
+          deleteTargetId={state.profileToDeleteId}
+          onSelectProfile={selectProfile}
+          onNewProfile={startNewAnalysis}
+          onToggleMenu={toggleProfileMenu}
+          onCloseMenu={closeProfileMenu}
+          onRequestDelete={requestDeleteProfile}
+          onCancelDelete={cancelDeleteProfile}
+          onConfirmDelete={confirmDeleteProfile}
+        />
+      )}
+
+      {state.screen === 'dashboard' && state.dashboard && (
         <DashboardScreen
-          state={state}
-          results={decoratedResults}
+          dashboard={state.dashboard}
+          countries={decoratedCountries}
+          worldFeatures={state.worldFeatures}
+          mapReady={state.mapReady}
           onOpenChat={() => openChat(null)}
           onOpenExampleQuestion={openChat}
-          onOpenCountry={openCountry}
+          onSelectCountry={selectCountry}
           onOpenMapFull={openMapFull}
-          onToggleAllRanking={toggleAllRanking}
-          onToggleProfileMenu={toggleProfileMenu}
-          onEditProfile={editProfile}
-          onBackToProfiles={backToProfiles}
-        />
-      )}
-
-      {state.newProfileOpen && (
-        <NewProfileModal
-          value={state.newProfileName}
-          onChange={onNewProfileNameChange}
-          onCancel={cancelNewProfile}
-          onConfirm={confirmNewProfile}
+          onNewAnalysis={startNewAnalysis}
+          onBackToProfiles={openProfiles}
         />
       )}
 
@@ -422,7 +457,8 @@ export default function App() {
         <MapFullModal
           mapReady={state.mapReady}
           worldFeatures={state.worldFeatures}
-          results={decoratedResults}
+          countries={decoratedCountries}
+          onSelectCountry={selectCountry}
           onClose={closeMapFull}
         />
       )}
@@ -440,8 +476,13 @@ export default function App() {
         />
       )}
 
-      {selectedResult && (
-        <CountryDetailModal result={selectedResult} onClose={closeCountry} />
+      {selectedCountry && state.dashboard && (
+        <CountryDetailModal
+          key={selectedCountry.countryCode}
+          country={selectedCountry}
+          company={state.dashboard.company}
+          onClose={closeCountry}
+        />
       )}
     </div>
   );

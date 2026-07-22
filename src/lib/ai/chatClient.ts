@@ -27,6 +27,8 @@ export interface ChatCompletedEvent {
   requestId: string | null;
   model: string;
   usage: ChatTokenUsage | null;
+  /** True when the reply was cut short by the model's output-token budget. */
+  truncated: boolean;
 }
 
 /** Callbacks invoked while consuming the stream. */
@@ -36,6 +38,15 @@ export interface StreamChatCallbacks {
   /** Called once when the stream completes successfully. */
   onCompleted?: (event: ChatCompletedEvent) => void;
 }
+
+/**
+ * How a stream finished:
+ * - "completed": the model produced a full, finished answer.
+ * - "truncated": useful text streamed, but the reply was cut short (hit the
+ *   output-token budget) or interrupted AFTER content had arrived. The partial
+ *   answer is kept; the caller shows a neutral "shortened" note, not an error.
+ */
+export type StreamChatStatus = "completed" | "truncated";
 
 /** Backend request/response limits (kept in sync with the server schema). */
 export const MAX_MESSAGES = 20;
@@ -72,6 +83,8 @@ function messageForCode(code: unknown): string {
       return "MarketCompassAI jest chwilowo niedostępny. Spróbuj ponownie.";
     case "AI_INVALID_RESPONSE":
       return "MarketCompassAI nie wygenerował poprawnej odpowiedzi. Spróbuj ponownie.";
+    case "RATE_LIMITED":
+      return "Zbyt wiele wiadomości w krótkim czasie. Spróbuj ponownie za chwilę.";
     default:
       // AI_INTERNAL_ERROR and any unknown code.
       return GENERIC_ERROR_MESSAGE;
@@ -207,6 +220,7 @@ function toCompletedEvent(payload: Record<string, unknown>): ChatCompletedEvent 
     requestId,
     model: payload.model,
     usage,
+    truncated: payload.truncated === true,
   };
 }
 
@@ -264,22 +278,30 @@ function handleFrame(frame: string, callbacks: StreamChatCallbacks): FrameOutcom
 }
 
 /**
- * POSTs the conversation to /api/ai/chat and streams the reply. Resolves after
- * a `completed` event. Rejects with a ChatClientError (safe message) for
- * pre-stream API errors, an SSE `error` event, a missing body, or a stream that
- * ends without a terminal event. A user abort propagates as an AbortError.
+ * POSTs the conversation to /api/ai/chat and streams the reply. Resolves with a
+ * status once the stream ends:
+ * - "completed" after a normal `completed` event,
+ * - "truncated" when the reply was cut short by the token budget OR the stream
+ *   errored / ended abruptly AFTER useful text had already arrived — the
+ *   partial answer is kept and the caller shows a neutral note, not an error.
+ *
+ * Rejects with a ChatClientError (safe message) ONLY when NO usable text was
+ * produced: pre-stream API errors, a missing body, an `error`/malformed
+ * terminal event before any content, or an empty stream. A user abort
+ * propagates as an AbortError.
  */
 export async function streamChat(
   messages: ChatRequestMessage[],
   callbacks: StreamChatCallbacks,
   signal: AbortSignal,
-): Promise<void> {
+  companyContext?: string,
+): Promise<StreamChatStatus> {
   let response: Response;
   try {
     response = await fetch("/api/ai/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages }),
+      body: JSON.stringify(companyContext ? { messages, companyContext } : { messages }),
       signal,
     });
   } catch (error) {
@@ -293,6 +315,21 @@ export async function streamChat(
   if (!response.body) {
     throw new ChatClientError(GENERIC_ERROR_MESSAGE);
   }
+
+  // Track whether any non-whitespace text reached the caller, and whether the
+  // terminal `completed` event flagged the reply as truncated.
+  let receivedText = false;
+  let truncated = false;
+  const tracked: StreamChatCallbacks = {
+    onTextDelta: (delta) => {
+      if (delta.trim().length > 0) receivedText = true;
+      callbacks.onTextDelta(delta);
+    },
+    onCompleted: (event) => {
+      if (event.truncated) truncated = true;
+      callbacks.onCompleted?.(event);
+    },
+  };
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
@@ -309,9 +346,21 @@ export async function streamChat(
       while (boundary) {
         const frame = buffer.slice(0, boundary.index);
         buffer = buffer.slice(boundary.index + boundary.length);
-        if (handleFrame(frame, callbacks) === "completed") {
-          terminated = true;
-          break;
+        try {
+          if (handleFrame(frame, tracked) === "completed") {
+            terminated = true;
+            break;
+          }
+        } catch (error) {
+          // A terminal `error`/malformed frame AFTER useful text has streamed is
+          // treated as a graceful truncation, not a hard failure — keep what we
+          // have. With no content yet, it stays a real error.
+          if (error instanceof ChatClientError && receivedText) {
+            truncated = true;
+            terminated = true;
+            break;
+          }
+          throw error;
         }
         boundary = findBoundary(buffer);
       }
@@ -326,6 +375,13 @@ export async function streamChat(
   }
 
   if (!terminated) {
-    throw new ChatClientError(GENERIC_ERROR_MESSAGE);
+    // Stream ended without a terminal event. If some useful text arrived, keep
+    // it as a truncated reply; otherwise it is a genuine failure.
+    if (!receivedText) {
+      throw new ChatClientError(GENERIC_ERROR_MESSAGE);
+    }
+    truncated = true;
   }
+
+  return truncated ? "truncated" : "completed";
 }

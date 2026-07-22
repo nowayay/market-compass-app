@@ -35,6 +35,12 @@ export interface CompletedEvent {
   requestId: string | null;
   model: string;
   usage: MarketCompassTokenUsage | null;
+  /**
+   * True when the reply was cut short by the output-token budget: the text
+   * already streamed is complete and usable, but the model did not fully
+   * finish. The browser keeps the partial answer and shows a neutral note.
+   */
+  truncated?: boolean;
 }
 
 /** Terminal failure event carrying only a stable code and a safe public message. */

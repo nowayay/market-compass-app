@@ -9,9 +9,18 @@ import {
   type MarketCompassStreamEvent,
 } from "@/src/server/ai/chat/streamProtocol";
 import { createChatEventStream } from "@/src/server/ai/services/streamChatResponse";
+import { clientIpFrom, createSimpleRateLimiter } from "@/src/server/rateLimit/simpleRateLimiter";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+/**
+ * Simple, process-local per-IP guard against hammering the chat endpoint.
+ * NOT a distributed rate limit — see `simpleRateLimiter.ts`. Kept at module
+ * scope so the window is shared across every request handled by this warm
+ * serverless instance.
+ */
+const rateLimiter = createSimpleRateLimiter({ windowMs: 5 * 60 * 1000, maxPerWindow: 30 });
 
 /** Stable JSON error envelope returned before streaming has started. */
 function jsonError(status: number, code: string, message: string): Response {
@@ -53,6 +62,10 @@ function toErrorEvent(error: unknown): MarketCompassStreamEvent {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  if (!rateLimiter.allow(clientIpFrom(request))) {
+    return jsonError(429, "RATE_LIMITED", "Zbyt wiele wiadomości w krótkim czasie. Spróbuj ponownie za chwilę.");
+  }
+
   // A. Parse JSON safely.
   let body: unknown;
   try {
@@ -82,7 +95,7 @@ export async function POST(request: Request): Promise<Response> {
   // and upstream-open failures become normal JSON error responses (C / D).
   let eventStream: AsyncIterable<MarketCompassStreamEvent>;
   try {
-    eventStream = await createChatEventStream(parsed.data.messages, controller.signal);
+    eventStream = await createChatEventStream(parsed.data.messages, controller.signal, parsed.data.companyContext);
   } catch (error) {
     request.signal.removeEventListener("abort", onRequestAbort);
     if (controller.signal.aborted) {

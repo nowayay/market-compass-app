@@ -3,6 +3,18 @@
 import { useEffect, useRef } from "react";
 import type { ChangeEventHandler, KeyboardEvent } from "react";
 import type { ChatMessage } from "../types";
+import { sanitizeChatPlainText } from "../lib/ai/plainText";
+
+/** Three animated dots shown in the AI bubble while a response is generating. */
+function TypingDots() {
+  return (
+    <div role="status" aria-label="MarketCompassAI pisze odpowiedź…" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 0' }}>
+      <span className="mc-typing-dot" style={{ animationDelay: '0s' }} />
+      <span className="mc-typing-dot" style={{ animationDelay: '0.15s' }} />
+      <span className="mc-typing-dot" style={{ animationDelay: '0.3s' }} />
+    </div>
+  );
+}
 
 export default function ChatModal({
   messages,
@@ -40,11 +52,16 @@ export default function ChatModal({
     }
   };
 
-  const decorated = messages.map((m) => ({
+  const decorated = messages.map((m, i) => ({
     text: m.text,
+    role: m.role,
+    truncated: m.truncated === true,
     align: m.role === 'user' ? 'flex-end' : 'flex-start',
     bg: m.role === 'user' ? '#16A34A' : '#F3F4F6',
     color: m.role === 'user' ? '#FFFFFF' : '#111827',
+    // The streamed placeholder is the last message; show dots only until its
+    // first text fragment arrives (an error/stop drops the placeholder outright).
+    showTyping: isGenerating && i === messages.length - 1 && m.role === 'assistant' && m.text.length === 0,
   }));
 
   return (
@@ -59,7 +76,22 @@ export default function ChatModal({
         </div>
         <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
           {decorated.map((m, i) => (
-            <div key={i} style={{ alignSelf: m.align, maxWidth: '82%', background: m.bg, color: m.color, padding: '11px 14px', borderRadius: 14, fontSize: 13, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{m.text}</div>
+            <div key={i} style={{ alignSelf: m.align, maxWidth: '82%', display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <div style={{ background: m.bg, color: m.color, padding: '11px 14px', borderRadius: 14, fontSize: 13, lineHeight: 1.55 }}>
+                {m.showTyping ? (
+                  <TypingDots />
+                ) : m.role === 'assistant' ? (
+                  // Plain text only, with line breaks preserved. A sanitizer
+                  // strips any stray Markdown/table rows the model may emit.
+                  <span style={{ whiteSpace: 'pre-wrap' }}>{sanitizeChatPlainText(m.text)}</span>
+                ) : (
+                  <span style={{ whiteSpace: 'pre-wrap' }}>{m.text}</span>
+                )}
+              </div>
+              {m.truncated && (
+                <div style={{ fontSize: 11.5, color: '#9CA3AF', paddingLeft: 4 }}>Odpowiedź została skrócona</div>
+              )}
+            </div>
           ))}
         </div>
         {error && (

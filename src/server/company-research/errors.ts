@@ -113,14 +113,6 @@ export class CandidateNotFoundError extends CompanyResearchError {
   }
 }
 
-/** The selected candidate contradicts the query name. */
-export class CandidateQueryMismatchError extends CompanyResearchError {
-  readonly code: CompanyResearchErrorCode = "CANDIDATE_QUERY_MISMATCH";
-  constructor(message = "Selected candidate contradicts the query") {
-    super(message, "Wybrany podmiot nie odpowiada podanej nazwie firmy.");
-  }
-}
-
 /** Name identification (paid web search) is disabled by configuration. */
 export class CompanyIdentificationDisabledError extends CompanyResearchError {
   readonly code: CompanyResearchErrorCode = "COMPANY_IDENTIFICATION_DISABLED";
@@ -145,6 +137,35 @@ export class CompanyIdentificationBusyError extends CompanyResearchError {
   }
 }
 
+/** The AI expansion-analysis provider (OpenAI) failed. */
+export class ExpansionAnalysisError extends CompanyResearchError {
+  readonly code: CompanyResearchErrorCode = "EXPANSION_ANALYSIS_ERROR";
+  constructor(message: string, cause?: unknown) {
+    super(message, "Analiza ekspansji AI jest chwilowo niedostępna. Spróbuj ponownie.", cause);
+  }
+}
+
+/** The AI expansion-analysis provider timed out. */
+export class ExpansionAnalysisTimeoutError extends CompanyResearchError {
+  readonly code: CompanyResearchErrorCode = "EXPANSION_ANALYSIS_TIMEOUT";
+  constructor(message = "Expansion analysis provider timed out", cause?: unknown) {
+    super(message, "Przekroczono czas analizy ekspansji. Spróbuj ponownie.", cause);
+  }
+}
+
+/** The AI expansion-analysis provider returned output that failed validation. */
+export class InvalidExpansionAnalysisResponseError extends CompanyResearchError {
+  readonly code: CompanyResearchErrorCode = "INVALID_EXPANSION_ANALYSIS_RESPONSE";
+  constructor(message = "Invalid expansion analysis response", cause?: unknown) {
+    super(message, "Nie udało się wygenerować analizy ekspansji. Spróbuj ponownie.", cause);
+  }
+}
+
+// NOTE: official domain-discovery errors are INTERNAL and live in
+// `domain-discovery/errors.ts` (with their own `DomainDiscoveryErrorCode`). They
+// deliberately do NOT extend `CompanyResearchError`, so they are never mapped to
+// a public HTTP status until the flow is wired into the public API.
+
 /**
  * Maps a Company Research error code onto an HTTP status. Pure and side-effect
  * free so it can be unit-tested in isolation.
@@ -161,18 +182,19 @@ export function errorHttpStatus(code: CompanyResearchErrorCode): number {
       return 413;
     case "CANDIDATE_NOT_FOUND":
       return 404;
-    case "CANDIDATE_QUERY_MISMATCH":
-      return 409;
     case "COMPANY_IDENTIFICATION_RATE_LIMITED":
       return 429;
     case "COMPANY_RESEARCH_PROVIDER_ERROR":
     case "COMPANY_IDENTIFICATION_ERROR":
     case "INVALID_IDENTIFICATION_RESPONSE":
+    case "EXPANSION_ANALYSIS_ERROR":
+    case "INVALID_EXPANSION_ANALYSIS_RESPONSE":
       return 502;
     case "COMPANY_RESEARCH_TIMEOUT":
     case "COMPANY_IDENTIFICATION_TIMEOUT":
     case "COMPANY_IDENTIFICATION_DISABLED":
     case "COMPANY_IDENTIFICATION_BUSY":
+    case "EXPANSION_ANALYSIS_TIMEOUT":
       return 503;
     case "COMPANY_RESEARCH_CONFIGURATION_ERROR":
       return 500;

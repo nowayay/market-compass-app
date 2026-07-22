@@ -7,6 +7,7 @@ import {
 import {
   CompanyIdentificationError,
   CompanyIdentificationTimeoutError,
+  CompanyResearchProviderError,
 } from "../errors.ts";
 import type {
   CompanyIdentificationProvider,
@@ -146,5 +147,51 @@ test("propagates an identification provider error", async () => {
   await assert.rejects(
     () => identifyByName(query("Alfa"), { identificationProvider: identThrowing(new CompanyIdentificationError("boom")), krsProvider: provider }, CTX),
     CompanyIdentificationError,
+  );
+});
+
+// Regression test for the real "Techland" / "InPost" 502 bug: the identification
+// provider discovers TWO candidates, but one KRS number belongs to a historical/
+// deregistered entity (the KRS transport now resolves that to `null`, see
+// krsTransport.test.ts). The name search must still complete with the other,
+// genuinely valid candidate — a single stale candidate must never sink the
+// whole search.
+test("a stale/deregistered candidate (KRS resolves to null) is skipped; the remaining valid candidate still completes", async () => {
+  const { provider } = krsProviderFrom({
+    "0000000001": null, // e.g. HTTP 204 from the registry — no current extract
+    "0000000002": krsCompany("0000000002", "Alfa"),
+  });
+  const res = await identifyByName(
+    query("Alfa"),
+    {
+      identificationProvider: identProvider([discovered("0000000001", "Alfa Dawna"), discovered("0000000002", "Alfa")]),
+      krsProvider: provider,
+    },
+    CTX,
+  );
+  assert.equal(res.status, "completed");
+  if (res.status === "completed") {
+    assert.equal(res.company.identity.identifiers.krs, "0000000002");
+  }
+});
+
+// A GENUINE KRS verification failure (not a graceful "not found") must still
+// surface as a required-stage failure — it is never hidden as if the search
+// had simply found nothing.
+test("a genuine KRS verification failure (not a graceful not-found) still propagates", async () => {
+  const provider: CompanyDataProvider = {
+    name: "fake-krs-failing",
+    async fetchByKrs(): Promise<never> {
+      throw new CompanyResearchProviderError("KRS responded with status 500", 500);
+    },
+  };
+  await assert.rejects(
+    () =>
+      identifyByName(
+        query("Alfa"),
+        { identificationProvider: identProvider([discovered("0000000001", "Alfa")]), krsProvider: provider },
+        CTX,
+      ),
+    CompanyResearchProviderError,
   );
 });

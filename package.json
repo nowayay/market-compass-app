@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test --experimental-strip-types \"src/server/company-research/__tests__/*.test.ts\"",
+    "test": "node --test --experimental-strip-types \"src/**/__tests__/*.test.ts\"",
     "test:typecheck": "tsc -p tsconfig.tests.json"
   },
   "dependencies": {

@@ -137,13 +137,48 @@ test("selectedCandidateId → completed without web search and without budget", 
   assert.equal(searched, false);
 });
 
-test("selectedCandidateId contradicting the query → 409 CANDIDATE_QUERY_MISMATCH", async () => {
+test("selecting a candidate whose registry name looks nothing like the query text still succeeds (no 409)", async () => {
   const res = await handleCompanyResearch(
     post({ query: { name: "Zupełnie Inna Nazwa" }, selectedCandidateId: "cmp_pl_krs_0000123456" }),
     deps(async () => supportedCompany),
   );
-  assert.equal(res.status, 409);
-  assert.equal(((await bodyOf(res)).error as Record<string, unknown>).code, "CANDIDATE_QUERY_MISMATCH");
+  assert.equal(res.status, 200);
+  assert.equal((await bodyOf(res)).status, "completed");
+});
+
+test("full flow: search → needs_confirmation → selecting any returned candidate → completed, never a 409", async () => {
+  const candidates = [
+    { legalName: "Zupełnie Inna Nazwa Sp. z o.o.", krs: "0000123456", countryCode: "PL" as const },
+  ];
+  const searchQuery = { name: "Coś Zupełnie Innego Niż Rejestr" };
+
+  // 1) The initial name search: a weak name/registry match forces needs_confirmation.
+  const searchRes = await handleCompanyResearch(
+    post({ query: searchQuery }),
+    deps(async () => supportedCompany, { candidates }),
+  );
+  assert.equal(searchRes.status, 200);
+  const searchBody = await bodyOf(searchRes);
+  assert.equal(searchBody.status, "needs_confirmation");
+  const returnedCandidates = searchBody.candidates as Array<Record<string, unknown>>;
+  assert.equal(returnedCandidates.length, 1);
+  const candidateId = returnedCandidates[0].candidateId as string;
+  assert.equal(candidateId, "cmp_pl_krs_0000123456");
+
+  // 2) Confirming that exact returned candidate, sending the ORIGINAL query
+  // data (never re-derived from anything the user might have since typed) —
+  // must complete without any 409, regardless of the weak text match that put
+  // it in needs_confirmation in the first place.
+  const confirmRes = await handleCompanyResearch(
+    post({ query: searchQuery, selectedCandidateId: candidateId }),
+    // poisonBudget proves this confirmation never falls through to a second
+    // web-search identification round — it only re-fetches the KRS entity.
+    deps(async () => supportedCompany, { budget: poisonBudget() }),
+  );
+  assert.notEqual(confirmRes.status, 409);
+  assert.equal(confirmRes.status, 200);
+  const confirmBody = await bodyOf(confirmRes);
+  assert.equal(confirmBody.status, "completed");
 });
 
 test("invalid selectedCandidateId → 400 INVALID_CANDIDATE_ID", async () => {

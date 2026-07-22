@@ -34,6 +34,18 @@ a:hover {
   0% { opacity: 0; transform: scale(.94); }
   100% { opacity: 1; transform: scale(1); }
 }
+@keyframes mc-typing-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: .4; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+.mc-typing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #9CA3AF;
+  display: inline-block;
+  animation: mc-typing-bounce 1.2s infinite ease-in-out;
+}
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -70,6 +82,9 @@ a:hover {
 .mc-chat-cta:hover {
   background: rgba(22, 163, 74, 0.05);
 }
+.mc-top-expansion-cta:hover {
+  background: #DCFCE7;
+}
 .mc-example-q:hover {
   border-color: #16A34A;
   background: rgba(22, 163, 74, 0.03);
@@ -100,4 +115,35 @@ a:hover {
 .mc-bubble:hover {
   transform: translate(-50%, -50%) scale(1.35);
   z-index: 10;
+}
+
+/*
+ * Dashboard analysis layout: two independent columns, each a natural-height
+ * stack of cards (no artificial stretching, no gaps forced by the other
+ * column's height).
+ * - Left (wider): interactive map, SWOT directly beneath it, then Sources.
+ * - Right (narrower): the top-expansion recommendation above the ranking.
+ * `minmax(0, …fr)` lets both columns shrink and their inner content ellipsize
+ * instead of forcing horizontal scroll.
+ */
+.mc-analysis-grid {
+  display: grid;
+  gap: 18px;
+  margin-bottom: 26px;
+  align-items: start;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+}
+.mc-col-left,
+.mc-col-right {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+/* Smaller screens: collapse to a single column, cards in source order. */
+@media (max-width: 900px) {
+  .mc-analysis-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
