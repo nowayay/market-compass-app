@@ -3,6 +3,7 @@ import type {
   DashboardCompanyInfo,
 } from "../../../contracts/companyDashboard.ts";
 import { buildSkippedResult } from "../business-research/buildBusinessResult.ts";
+import { deriveDashboardSources } from "./dashboardSources.ts";
 import { enrichCompanyProfile } from "../enrichment/enrichCompanyProfile.ts";
 import type { CompanyEnrichmentProvider } from "../enrichment/types.ts";
 import { CompanyResearchInternalError } from "../errors.ts";
@@ -197,10 +198,21 @@ export async function researchCompanyDashboard(
   // (or otherwise missing the important business facts), ONE structured
   // OpenAI web-search call fills in what it can. On any failure it gracefully
   // returns the original assembled profile unchanged (see `enrichCompanyProfile`).
-  const enrichedProfile = await enrichCompanyProfile(
+  const enrichment = await enrichCompanyProfile(
     { assembly: webResult.profileAssembly, company: krsCompany, foundedYearHint: response.query.foundedYear },
     { provider: deps.enrichmentProvider },
     { signal: ctx.signal },
+  );
+  const enrichedProfile = enrichment.profile;
+
+  // The displayed sources are derived STRICTLY from FactEvidence across both the
+  // deterministic assembly and the optional enrichment — the KRS registry plus
+  // every source actually backing a fact (e.g. an official website the
+  // enrichment discovered), origin-only and deduplicated by origin. A source is
+  // never added just because a URL exists on the profile.
+  const dashboardSources = deriveDashboardSources(
+    [...webResult.profileAssembly.evidence, ...enrichment.evidence],
+    [...webResult.profileAssembly.sources, ...enrichment.sources],
   );
 
   const expansionInput = buildExpansionAnalysisInput(enrichedProfile);
@@ -221,6 +233,6 @@ export async function researchCompanyDashboard(
     query: response.query,
     company: toDashboardCompanyInfo(enrichedProfile, response.query.foundedYear),
     expansion,
-    sources: webResult.profileAssembly.sources,
+    sources: dashboardSources,
   });
 }

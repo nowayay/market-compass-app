@@ -132,7 +132,7 @@ test("(mergeEnrichmentFacts) an invalid/unnormalizable website never discards va
 
 test("(enrichCompanyProfile) returns an enriched profile when research succeeds", async () => {
   const assembly = legalOnlyAssembly();
-  const merged = await enrichCompanyProfile(
+  const { profile: merged } = await enrichCompanyProfile(
     { assembly, company: krsCompany() },
     { provider: fakeProvider(fullFacts()) },
   );
@@ -143,28 +143,66 @@ test("(enrichCompanyProfile) returns an enriched profile when research succeeds"
   assert.deepEqual(merged.business.productsServices, ["Platforma płatnicza"]);
 });
 
+test("(enrichCompanyProfile) emits an evidence-backed, origin-only website source for a discovered domain", async () => {
+  const assembly = legalOnlyAssembly();
+  const { sources, evidence } = await enrichCompanyProfile(
+    { assembly, company: krsCompany() },
+    { provider: fakeProvider(fullFacts({ website: "https://przyklad.example/o-nas?x=1#top" })), now: () => new Date("2026-07-14T10:00:00.000Z") },
+  );
+
+  assert.equal(sources.length, 1);
+  const [source] = sources;
+  // Origin-only: no path/query/fragment survives.
+  assert.equal(source.url, "https://przyklad.example");
+  assert.equal(source.domain, "przyklad.example");
+  assert.equal(source.provider, "openai_web_search");
+  assert.equal(source.type, "official_company_website");
+
+  // The source is backed by evidence targeting the website fact.
+  assert.equal(evidence.length, 1);
+  assert.equal(evidence[0].target.path, "company.website.url");
+  assert.deepEqual(evidence[0].sourceIds, [source.id]);
+});
+
+test("(enrichCompanyProfile) emits NO source when enrichment finds facts but no website", async () => {
+  const assembly = legalOnlyAssembly();
+  const { profile, sources, evidence } = await enrichCompanyProfile(
+    { assembly, company: krsCompany() },
+    { provider: fakeProvider(fullFacts({ website: null })) },
+  );
+  // Business facts are still merged...
+  assert.equal(profile.business.description, "Firma dostarcza oprogramowanie dla sektora finansowego.");
+  // ...but with no discovered origin there is nothing evidence-backed to cite.
+  assert.deepEqual(sources, []);
+  assert.deepEqual(evidence, []);
+});
+
 test("(enrichCompanyProfile) gracefully keeps the legal-only profile when the provider fails", async () => {
   const assembly = legalOnlyAssembly();
-  const result = await enrichCompanyProfile(
+  const { profile, sources, evidence } = await enrichCompanyProfile(
     { assembly, company: krsCompany() },
     { provider: fakeProvider(async () => { throw new Error("provider unavailable"); }) },
   );
-  assert.equal(result, assembly.profile);
-  assert.equal(result.business.description, undefined);
-  assert.deepEqual(result.business.productsServices, []);
+  assert.equal(profile, assembly.profile);
+  assert.equal(profile.business.description, undefined);
+  assert.deepEqual(profile.business.productsServices, []);
+  assert.deepEqual(sources, []);
+  assert.deepEqual(evidence, []);
 });
 
 test("(enrichCompanyProfile) rejects personal data anywhere in the enrichment output and falls back", async () => {
   const assembly = legalOnlyAssembly();
   const tainted = fullFacts({ description: "Firma powstała dzięki Janowi Kowalskiemu. Kontakt: biuro@przyklad.example" });
-  const result = await enrichCompanyProfile(
+  const { profile, sources } = await enrichCompanyProfile(
     { assembly, company: krsCompany() },
     { provider: fakeProvider(tainted) },
   );
   // The personal-data guard rejects the merged result, so the legal-only
   // profile is kept unchanged instead of leaking the tainted description.
-  assert.equal(result.business.description, undefined);
-  assert.equal(result.identity.foundedYear, undefined);
+  assert.equal(profile.business.description, undefined);
+  assert.equal(profile.identity.foundedYear, undefined);
+  // A rejected/fallback enrichment contributes no source.
+  assert.deepEqual(sources, []);
 });
 
 test("(enrichCompanyProfile) does not call the provider when the profile already has business facts", async () => {
@@ -173,12 +211,12 @@ test("(enrichCompanyProfile) does not call the provider when the profile already
     { now: clock() },
   );
   let called = false;
-  const result = await enrichCompanyProfile(
+  const { profile } = await enrichCompanyProfile(
     { assembly, company: krsCompany() },
     { provider: fakeProvider(async () => { called = true; return fullFacts(); }) },
   );
   assert.equal(called, false);
-  assert.equal(result, assembly.profile);
+  assert.equal(profile, assembly.profile);
 });
 
 // --- Development logging: safe shape, no personal/company-identifying data ---

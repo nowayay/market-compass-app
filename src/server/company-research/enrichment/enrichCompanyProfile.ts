@@ -2,7 +2,9 @@ import { safeOriginFromUrl } from "../identification/webSourceSecurity.ts";
 import { logPipelineStage, stageErrorReasonCode } from "../logging/pipelineStageLog.ts";
 import { assertNoPersonalData } from "../privacy/assertNoPersonalData.ts";
 import { cloneCompanyProfile } from "../profile-assembly/clone.ts";
-import type { CompanyProfile } from "../../../contracts/companyResearch.ts";
+import { buildWebsiteEvidence } from "../profile-assembly/evidence.ts";
+import { buildWebsiteSource } from "../profile-assembly/sources.ts";
+import type { CompanyProfile, FactEvidence, ResearchSource } from "../../../contracts/companyResearch.ts";
 import type { CompanyProfileAssemblyResult } from "../profile-assembly/types.ts";
 import type { KrsCompany } from "../types.ts";
 import type { CompanyEnrichmentFacts, CompanyEnrichmentProvider } from "./types.ts";
@@ -80,6 +82,49 @@ export interface EnrichCompanyProfileParams {
 
 export interface EnrichCompanyProfileDeps {
   provider: CompanyEnrichmentProvider;
+  /** Clock for the provenance `retrievedAt`. Defaults to the wall clock. */
+  now?: () => Date;
+}
+
+/**
+ * The enriched profile plus any origin-only provenance the enrichment actually
+ * produced. `sources`/`evidence` are non-empty ONLY when the enrichment
+ * discovered and merged the company's official website origin — every source is
+ * backed by a matching `FactEvidence` entry, so the dashboard can attribute it
+ * to a real fact and never invents a source from a bare `website` field. Both
+ * are empty when enrichment is skipped, fails, or adds no website origin.
+ */
+export interface EnrichCompanyProfileResult {
+  profile: CompanyProfile;
+  sources: ResearchSource[];
+  evidence: FactEvidence[];
+}
+
+/**
+ * Builds the evidence-backed, origin-only provenance for the website the
+ * enrichment just added — and NOTHING else. It returns a source only when this
+ * enrichment call itself introduced a new website origin (the profile had none
+ * before and now has a valid origin); an already-present website, or a merge
+ * that added no website, yields no source. This is what makes the returned
+ * source genuinely "from evidence" rather than synthesized from a URL field.
+ */
+function buildEnrichmentProvenance(
+  before: CompanyProfile,
+  after: CompanyProfile,
+  now: () => Date,
+): { sources: ResearchSource[]; evidence: FactEvidence[] } {
+  const addedWebsite = !before.website.url && Boolean(after.website.url);
+  if (!addedWebsite) return { sources: [], evidence: [] };
+
+  const origin = after.website.url as string;
+  const safe = safeOriginFromUrl(origin);
+  // Defense-in-depth: only an already-origin-only value becomes a source.
+  if (safe === null || safe.origin !== origin) return { sources: [], evidence: [] };
+
+  const retrievedAt = now().toISOString();
+  const source = buildWebsiteSource(origin, retrievedAt);
+  const evidence = buildWebsiteEvidence(source.id, retrievedAt);
+  return { sources: [source], evidence: [evidence] };
 }
 
 /**
@@ -99,11 +144,12 @@ export async function enrichCompanyProfile(
   params: EnrichCompanyProfileParams,
   deps: EnrichCompanyProfileDeps,
   options?: { signal?: AbortSignal },
-): Promise<CompanyProfile> {
+): Promise<EnrichCompanyProfileResult> {
   const { assembly, company, foundedYearHint } = params;
+  const now = deps.now ?? (() => new Date());
   if (!needsEnrichment(assembly)) {
     logPipelineStage("enrichment", "skipped");
-    return assembly.profile;
+    return { profile: assembly.profile, sources: [], evidence: [] };
   }
 
   try {
@@ -122,9 +168,10 @@ export async function enrichCompanyProfile(
     // trace of natural-person data anywhere in the merged profile.
     assertNoPersonalData(merged, "company");
     logPipelineStage("enrichment", "completed");
-    return merged;
+    const { sources, evidence } = buildEnrichmentProvenance(assembly.profile, merged, now);
+    return { profile: merged, sources, evidence };
   } catch (error) {
     logPipelineStage("enrichment", "fallback", stageErrorReasonCode(error));
-    return assembly.profile;
+    return { profile: assembly.profile, sources: [], evidence: [] };
   }
 }

@@ -154,6 +154,47 @@ test("(dashboard completed) exact KRS flow returns the dashboard-shaped complete
   assert.deepEqual(Object.keys(result.expansion.swot).sort(), ["opportunities", "strengths", "threats", "weaknesses"]);
 });
 
+test("(dashboard sources) an official website discovered by enrichment appears as an origin-only source", async () => {
+  // Web-research fallback (KRS-only assembly), but the enrichment discovers the
+  // official domain from a full URL — it must surface as an origin-only source
+  // in addition to KRS, backed by evidence (never invented from the field).
+  const deps = baseDeps({
+    enrichmentProvider: fakeEnrichmentProvider(
+      fullEnrichmentFacts({ website: "https://wkdzik.pl/kontakt?utm=1#dane" }),
+    ),
+  });
+  const result = await researchCompanyDashboard(
+    { query: { name: "Przykładowa Spółka", countryCode: "PL", krs: companyA.krs } },
+    deps,
+    ctx(),
+  );
+  assert.equal(result.status, "completed");
+  if (result.status !== "completed") return;
+
+  assert.ok(result.sources.some((s) => s.provider === "krs"), "KRS is still shown");
+  const web = result.sources.find((s) => s.provider === "openai_web_search");
+  assert.ok(web, "the discovered official website is shown as a source");
+  // Origin-only: no path/query/fragment is stored or shown.
+  assert.equal(web.url, "https://wkdzik.pl");
+  assert.equal(web.domain, "wkdzik.pl");
+  assert.equal(web.type, "official_company_website");
+});
+
+test("(dashboard sources) without any discovered website, only KRS is shown", async () => {
+  // Enrichment fills business facts but finds no website → no web source.
+  const deps = baseDeps({
+    enrichmentProvider: fakeEnrichmentProvider(fullEnrichmentFacts({ website: null })),
+  });
+  const result = await researchCompanyDashboard(
+    { query: { name: "Przykładowa Spółka", countryCode: "PL", krs: companyA.krs } },
+    deps,
+    ctx(),
+  );
+  assert.equal(result.status, "completed");
+  if (result.status !== "completed") return;
+  assert.deepEqual(result.sources.map((s) => s.provider), ["krs"]);
+});
+
 test("(dashboard not_found) unknown KRS returns not_found", async () => {
   const deps = baseDeps({ krsProvider: krsProvider(async () => null) });
   const result = await researchCompanyDashboard(
