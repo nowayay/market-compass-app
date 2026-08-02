@@ -1,0 +1,20 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "createdAt": "2026-08-02T14:00:15.769Z",
+        "reason": "DESIGN.md commits to Inter as the incumbent identity face"
+      },
+      {
+        "rule": "bounce-easing",
+        "value": "mc-typing-bounce",
+        "createdAt": "2026-08-02T14:00:18.818Z",
+        "reason": "ease-in-out typing-dot travel, not a bounce easing curve"
+      }
+    ]
+  }
+}
