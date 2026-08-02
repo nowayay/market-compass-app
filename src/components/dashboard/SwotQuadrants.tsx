@@ -39,7 +39,7 @@ export default function SwotQuadrants({ swot }: { swot: ExpansionSwot | null }) 
       </div>
 
       <div style={{ fontSize: 11, color: '#6B7280', lineHeight: 1.5, marginTop: 18 }}>
-        Analiza wygenerowana przez AI na podstawie profilu firmy — nie stanowi porady prawnej ani podatkowej i nie zawiera wyliczonych wskaźników finansowych.
+        Analiza wygenerowana przez AI na podstawie profilu firmy - nie stanowi porady prawnej ani podatkowej i nie zawiera wyliczonych wskaźników finansowych.
       </div>
     </div>
   );

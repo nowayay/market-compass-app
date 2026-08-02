@@ -238,7 +238,7 @@ export default function CountryDetailModal({
         </div>
 
         <div style={{ fontSize: 11, color: '#6B7280', lineHeight: 1.5, marginTop: 16 }}>
-          Analiza wygenerowana przez AI na podstawie profilu firmy. Nie stanowi porady prawnej ani podatkowej, nie zawiera wyliczonych wskaźników finansowych — traktuj ją jako punkt wyjścia do dalszej weryfikacji.
+          Analiza wygenerowana przez AI na podstawie profilu firmy. Nie stanowi porady prawnej ani podatkowej, nie zawiera wyliczonych wskaźników finansowych - traktuj ją jako punkt wyjścia do dalszej weryfikacji.
         </div>
       </div>
     </div>

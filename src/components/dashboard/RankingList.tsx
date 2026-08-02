@@ -27,7 +27,7 @@ export default function RankingList({
           onClick={() => onSelectCountry(c.countryCode)}
           // The row's visible cells read as a bare string of tokens out of
           // context ("1 Niemcy 87 …"), so the label spells the row out instead.
-          aria-label={`${c.countryName} — miejsce ${c.rank}, wynik ${c.score} na 100. Zobacz szczegóły rynku.`}
+          aria-label={`${c.countryName} - miejsce ${c.rank}, wynik ${c.score} na 100. Zobacz szczegóły rynku.`}
           style={{ display: 'grid', gridTemplateColumns: GRID_COLS, gap: 8, alignItems: 'center', padding: '11px 4px', cursor: 'pointer' }}
         >
           <div style={{ fontSize: 13, fontWeight: 700, color: '#6B7280' }}>{c.rank}</div>
