@@ -10,10 +10,13 @@ function ItemRow({ items, muted }: { items: CompanyOverviewItem[]; muted?: boole
       {items.map((item) => (
         <div
           key={item.label}
-          style={{ display: 'flex', gap: 8, fontSize: muted ? 12.5 : 13, color: muted ? '#9CA3AF' : '#6B7280', lineHeight: 1.45 }}
+          // `minWidth: 0` + `overflowWrap` keep an unbroken value — a long
+          // official website URL, most often — inside its grid cell instead of
+          // pushing the card wider than its column.
+          style={{ display: 'flex', gap: 8, minWidth: 0, fontSize: muted ? 12.5 : 13, color: '#6B7280', lineHeight: 1.45 }}
         >
-          <span style={{ color: muted ? '#9CA3AF' : '#16A34A', flexShrink: 0 }}>•</span>
-          <span>
+          <span style={{ color: muted ? '#9CA3AF' : '#16A34A', flexShrink: 0 }} aria-hidden="true">•</span>
+          <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
             <span style={{ color: muted ? '#6B7280' : '#374151', fontWeight: 600 }}>{item.label}:</span>{' '}
             {item.isLink ? (
               <a href={item.value} target="_blank" rel="noopener noreferrer">{item.value}</a>

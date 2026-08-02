@@ -37,7 +37,7 @@ const initialState: AppState = {
   selectedCountryCode: null,
   showAllRanking: false,
   mapFull: false,
-  mapReady: false,
+  mapStatus: 'loading',
   worldFeatures: [],
   chatOpen: false,
   chatMessages: [],
@@ -63,6 +63,8 @@ const RESEARCH_TIMEOUT_ERROR =
 
 export default function App() {
   const [state, setState] = useState<AppState>(initialState);
+  // Bumped by the map's retry button to re-run the world-atlas fetch.
+  const [mapAttempt, setMapAttempt] = useState(0);
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -88,11 +90,16 @@ export default function App() {
     patch(profiles.length > 0 ? { profiles, screen: 'profiles' } : { profiles });
   }, []);
 
+  // The world outlines come from a third-party CDN, so a failed or slow network
+  // is an expected state rather than an exception. A failure surfaces a retry
+  // instead of an endless "loading" — bumping `mapAttempt` re-runs this effect.
   useEffect(() => {
     let cancelled = false;
+    patch({ mapStatus: 'loading' });
     (async () => {
       try {
         const res = await fetch('https://cdn.jsdelivr.net/gh/johan/world.geo.json@master/countries.geo.json');
+        if (!res.ok) throw new Error(`world atlas responded ${res.status}`);
         const geo = await res.json() as FeatureCollection;
         const width = 960, height = 470;
         const projection = geoNaturalEarth1().fitSize([width, height], geo);
@@ -100,13 +107,16 @@ export default function App() {
         const worldFeatures = geo.features
           .map((f) => ({ iso3: String(f.id ?? ''), d: pathGen(f) ?? '' }))
           .filter((f) => f.d);
-        if (!cancelled) patch({ worldFeatures, mapReady: true });
+        if (worldFeatures.length === 0) throw new Error('world atlas contained no usable outlines');
+        if (!cancelled) patch({ worldFeatures, mapStatus: 'ready' });
       } catch {
-        if (!cancelled) patch({ mapReady: false });
+        if (!cancelled) patch({ worldFeatures: [], mapStatus: 'error' });
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [mapAttempt]);
+
+  const retryMap = () => setMapAttempt((a) => a + 1);
 
   const updateField = (field: keyof FormValues, value: string) =>
     patch((s) => ({ form: { ...s.form, [field]: value }, formError: null }));
@@ -259,7 +269,7 @@ export default function App() {
   // ---- dashboard: map + ranking ----
   const selectCountry = (countryCode: string) => patch({ selectedCountryCode: countryCode });
   const closeCountry = () => patch({ selectedCountryCode: null });
-  const openMapFull = (e?: React.MouseEvent) => { if (e) e.preventDefault(); patch({ mapFull: true }); };
+  const openMapFull = () => patch({ mapFull: true });
   const closeMapFull = () => patch({ mapFull: false });
 
   // ---- chat ----
@@ -443,7 +453,8 @@ export default function App() {
           dashboard={state.dashboard}
           countries={decoratedCountries}
           worldFeatures={state.worldFeatures}
-          mapReady={state.mapReady}
+          mapStatus={state.mapStatus}
+          onRetryMap={retryMap}
           onOpenChat={() => openChat(null)}
           onOpenExampleQuestion={openChat}
           onSelectCountry={selectCountry}
@@ -455,10 +466,11 @@ export default function App() {
 
       {state.mapFull && (
         <MapFullModal
-          mapReady={state.mapReady}
+          mapStatus={state.mapStatus}
           worldFeatures={state.worldFeatures}
           countries={decoratedCountries}
           onSelectCountry={selectCountry}
+          onRetryMap={retryMap}
           onClose={closeMapFull}
         />
       )}

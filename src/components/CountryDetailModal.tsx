@@ -5,6 +5,7 @@ import type { DecoratedCountry } from "../types";
 import type { CountryDetails } from "../contracts/countryDetails";
 import { fetchCountryDetails, CountryDetailsClientError } from "../lib/company-research/countryDetailsClient";
 import { loadCountryDetails, saveCountryDetails } from "../lib/countryDetailsStorage";
+import { useDialog } from "../lib/useDialog";
 import FlagIcon from './FlagIcon';
 
 /** The subset of dashboard company facts sent as context for a country deep-dive. */
@@ -54,6 +55,7 @@ export default function CountryDetailModal({
   onClose: () => void;
 }) {
   const stopProp = (e: React.MouseEvent) => e.stopPropagation();
+  const panelRef = useDialog(onClose);
 
   const [details, setDetails] = useState<CountryDetails | null>(null);
   const [loading, setLoading] = useState(false);
@@ -119,38 +121,46 @@ export default function CountryDetailModal({
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.5)', zIndex: 60, display: 'flex', justifyContent: 'flex-end', animation: 'mc-fade-up .18s ease' }} onClick={onClose}>
-      <div onClick={stopProp} style={{ width: 480, maxWidth: '92vw', height: '100%', background: '#FAFBFC', boxShadow: '-16px 0 40px rgba(0,0,0,0.15)', overflowY: 'auto', padding: 28 }}>
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="country-detail-title"
+        onClick={stopProp}
+        style={{ width: 480, maxWidth: '92vw', height: '100%', background: '#FAFBFC', boxShadow: '-16px 0 40px rgba(0,0,0,0.15)', overflowY: 'auto', padding: 28 }}
+      >
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6 }}>
           <div>
-            <div style={{ fontSize: 11.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: country.tierColor }}>{country.tierLabel}</div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: '#111827', marginTop: 4, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: country.tierInk }}>{country.tierLabel}</div>
+            <div id="country-detail-title" style={{ fontSize: 22, fontWeight: 800, color: '#111827', marginTop: 4, display: 'flex', alignItems: 'center', gap: 10 }}>
               <FlagIcon countryId={country.countryCode} size={28} />
               {country.countryName}
             </div>
           </div>
-          <button onClick={onClose} style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', width: 32, height: 32, borderRadius: 9, cursor: 'pointer', fontSize: 15, color: '#6B7280' }}>✕</button>
+          <button type="button" onClick={onClose} aria-label="Zamknij szczegóły kraju" style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', width: 32, height: 32, borderRadius: 9, cursor: 'pointer', fontSize: 15, color: '#6B7280' }}>✕</button>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 20, margin: '20px 0' }}>
-          <div style={{ width: 84, height: 84, borderRadius: '50%', flexShrink: 0, background: `conic-gradient(${country.tierColor} ${country.score}%, #EBECEF 0)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: 84, height: 84, borderRadius: '50%', flexShrink: 0, background: `conic-gradient(${country.tierInk} ${country.score}%, #EBECEF 0)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
               <div style={{ fontSize: 20, fontWeight: 800, color: '#111827' }}>{country.score}</div>
-              <div style={{ fontSize: 9.5, color: '#9CA3AF' }}>/100</div>
+              <div style={{ fontSize: 9.5, color: '#6B7280' }}>/100</div>
             </div>
           </div>
           <div style={{ fontSize: 13, color: '#1F2937', lineHeight: 1.55 }}>{country.summary}</div>
         </div>
 
         <div style={{ marginBottom: 20 }}>
-          <SectionLabel text="Szanse" color="#16803C" />
+          <SectionLabel text="Szanse" color="#15803D" />
           {shownOpportunities.map((op, i) => (
-            <Bullet key={i} mark="✓" markColor="#16A34A" text={op} />
+            <Bullet key={i} mark="✓" markColor="#15803D" text={op} />
           ))}
         </div>
         <div style={{ marginBottom: 12 }}>
           <SectionLabel text="Ryzyka" color="#DC2626" />
           {shownRisks.map((rk, i) => (
-            <Bullet key={i} mark="!" markColor="#EF4444" text={rk} />
+            <Bullet key={i} mark="!" markColor="#DC2626" text={rk} />
           ))}
         </div>
 
@@ -167,6 +177,7 @@ export default function CountryDetailModal({
             <div role="alert" style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, padding: '12px 14px' }}>
               <div style={{ fontSize: 12.5, color: '#B91C1C', lineHeight: 1.5, marginBottom: 10 }}>{error}</div>
               <button
+                type="button"
                 onClick={() => setAttempt((a) => a + 1)}
                 style={{ background: '#16A34A', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}
               >
@@ -202,7 +213,7 @@ export default function CountryDetailModal({
               <div style={{ marginBottom: 18 }}>
                 <SectionLabel text="Bariery wejścia" color="#B45309" />
                 {details.barriers.map((b, i) => (
-                  <Bullet key={i} mark="▸" markColor="#D97706" text={b} />
+                  <Bullet key={i} mark="▸" markColor="#B45309" text={b} />
                 ))}
               </div>
 
@@ -226,7 +237,7 @@ export default function CountryDetailModal({
           )}
         </div>
 
-        <div style={{ fontSize: 11, color: '#9CA3AF', lineHeight: 1.5, marginTop: 16 }}>
+        <div style={{ fontSize: 11, color: '#6B7280', lineHeight: 1.5, marginTop: 16 }}>
           Analiza wygenerowana przez AI na podstawie profilu firmy. Nie stanowi porady prawnej ani podatkowej, nie zawiera wyliczonych wskaźników finansowych — traktuj ją jako punkt wyjścia do dalszej weryfikacji.
         </div>
       </div>

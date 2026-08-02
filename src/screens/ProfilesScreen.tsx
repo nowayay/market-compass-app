@@ -2,6 +2,7 @@
 
 import type { CompanyProfileEntry } from "../types";
 import CompassLogo from "../components/CompassLogo";
+import { useDialog } from "../lib/useDialog";
 
 function formatSavedAt(savedAt: string): string {
   const date = new Date(savedAt);
@@ -51,7 +52,7 @@ export default function ProfilesScreen({
           <button
             onClick={(e) => { e.stopPropagation(); onNewProfile(); }}
             className="mc-submit-btn"
-            style={{ background: '#16A34A', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 14px rgba(22,163,74,0.25)' }}
+            style={{ background: '#15803D', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 14px rgba(22,163,74,0.25)' }}
           >
             + Nowy profil firmy
           </button>
@@ -61,7 +62,7 @@ export default function ProfilesScreen({
         <div style={{ marginBottom: 28, fontSize: 14.5, color: '#6B7280' }}>Wybierz zapisany profil, aby wrócić do jego analizy, lub rozpocznij nowy.</div>
 
         {profiles.length === 0 ? (
-          <div style={{ background: '#fff', border: '1px dashed #E5E7EB', borderRadius: 16, padding: 40, textAlign: 'center', color: '#9CA3AF', fontSize: 13.5 }}>
+          <div style={{ background: '#fff', border: '1px dashed #E5E7EB', borderRadius: 16, padding: 40, textAlign: 'center', color: '#6B7280', fontSize: 13.5 }}>
             Nie masz jeszcze żadnych zapisanych profili firm.
           </div>
         ) : (
@@ -69,16 +70,33 @@ export default function ProfilesScreen({
             {profiles.map((p) => (
               <div
                 key={p.id}
-                onClick={() => onSelectProfile(p.id)}
                 className="mc-profile-card"
-                style={{ position: 'relative', textAlign: 'left', background: '#fff', border: '1px solid #E8E2D8', borderRadius: 14, padding: 18, cursor: 'pointer' }}
+                style={{ position: 'relative', textAlign: 'left', background: '#fff', border: '1px solid #E8E2D8', borderRadius: 14, padding: 18 }}
               >
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-                  <div style={{ fontSize: 15.5, fontWeight: 700, color: '#111827', lineHeight: 1.3 }}>{p.dashboard.company.legalName}</div>
+                  {/*
+                    The card's hit area belongs to this button (stretched over
+                    the card by `.mc-profile-open::after`) rather than to the
+                    card itself — a card-level onClick would have to wrap the
+                    menu button below, which is invalid and unreachable by
+                    keyboard.
+                  */}
                   <button
+                    type="button"
+                    className="mc-profile-open"
+                    onClick={() => onSelectProfile(p.id)}
+                    aria-label={`Otwórz analizę: ${p.dashboard.company.legalName}`}
+                    style={{ fontSize: 15.5, fontWeight: 700, color: '#111827', lineHeight: 1.3 }}
+                  >
+                    {p.dashboard.company.legalName}
+                  </button>
+                  <button
+                    type="button"
+                    className="mc-profile-menu"
                     onClick={(e) => { e.stopPropagation(); onToggleMenu(p.id); }}
-                    aria-label="Menu profilu"
-                    style={{ background: 'none', border: 'none', color: '#9CA3AF', fontSize: 18, cursor: 'pointer', padding: '2px 6px', lineHeight: 1, flexShrink: 0 }}
+                    aria-label={`Menu profilu: ${p.dashboard.company.legalName}`}
+                    aria-expanded={openMenuId === p.id}
+                    style={{ background: 'none', border: 'none', color: '#6B7280', fontSize: 18, cursor: 'pointer', padding: '2px 6px', lineHeight: 1, flexShrink: 0 }}
                   >
                     ⋯
                   </button>
@@ -88,6 +106,7 @@ export default function ProfilesScreen({
                       style={{ position: 'absolute', top: 40, right: 14, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, boxShadow: '0 8px 24px rgba(16,24,40,0.12)', overflow: 'hidden', zIndex: 5, minWidth: 150 }}
                     >
                       <button
+                        type="button"
                         onClick={() => onRequestDelete(p.id)}
                         className="mc-menu-item-danger"
                         style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 14px', fontSize: 12.5, color: '#DC2626', cursor: 'pointer', fontWeight: 600 }}
@@ -98,7 +117,7 @@ export default function ProfilesScreen({
                   )}
                 </div>
 
-                <div style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 5, background: '#DCFCE7', color: '#16803C', borderRadius: 999, padding: '3px 10px', fontSize: 11, fontWeight: 700 }}>
+                <div style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 5, background: '#DCFCE7', color: '#15803D', borderRadius: 999, padding: '3px 10px', fontSize: 11, fontWeight: 700 }}>
                   <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#16A34A', display: 'inline-block' }} />
                   Analiza ukończona
                 </div>
@@ -114,22 +133,56 @@ export default function ProfilesScreen({
       </div>
 
       {deleteTarget && (
-        <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.5)', zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'mc-fade-up .18s ease' }}
-          onClick={(e) => { e.stopPropagation(); onCancelDelete(); }}
-        >
-          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, padding: 26, width: 'min(420px,90vw)', boxShadow: '0 30px 80px rgba(0,0,0,0.3)' }}>
-            <div style={{ fontSize: 16, fontWeight: 800, color: '#111827', marginBottom: 8 }}>Usunąć profil?</div>
-            <div style={{ fontSize: 13, color: '#6B7280', lineHeight: 1.5, marginBottom: 22 }}>
-              Profil <strong>{deleteTarget.dashboard.company.legalName}</strong> zostanie trwale usunięty z tego urządzenia. Tej operacji nie można cofnąć.
-            </div>
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button onClick={onCancelDelete} style={{ background: '#F3F4F6', border: 'none', color: '#374151', borderRadius: 10, padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Anuluj</button>
-              <button onClick={onConfirmDelete} style={{ background: '#DC2626', border: 'none', color: '#fff', borderRadius: 10, padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Usuń profil</button>
-            </div>
-          </div>
-        </div>
+        <DeleteProfileDialog
+          legalName={deleteTarget.dashboard.company.legalName}
+          onCancel={onCancelDelete}
+          onConfirm={onConfirmDelete}
+        />
       )}
+    </div>
+  );
+}
+
+/**
+ * Destructive confirmation. Split out from the screen so it can own the shared
+ * dialog behavior (Escape, focus trap, focus restore) — hooks cannot run
+ * conditionally, and this dialog only exists while a profile is targeted.
+ */
+function DeleteProfileDialog({
+  legalName,
+  onCancel,
+  onConfirm,
+}: {
+  legalName: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const panelRef = useDialog(onCancel);
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.5)', zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'mc-fade-up .18s ease' }}
+      onClick={(e) => { e.stopPropagation(); onCancel(); }}
+    >
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="delete-profile-title"
+        aria-describedby="delete-profile-description"
+        onClick={(e) => e.stopPropagation()}
+        style={{ background: '#fff', borderRadius: 16, padding: 26, width: 'min(420px,90vw)', boxShadow: '0 30px 80px rgba(0,0,0,0.3)' }}
+      >
+        <div id="delete-profile-title" style={{ fontSize: 16, fontWeight: 800, color: '#111827', marginBottom: 8 }}>Usunąć profil?</div>
+        <div id="delete-profile-description" style={{ fontSize: 13, color: '#6B7280', lineHeight: 1.5, marginBottom: 22 }}>
+          Profil <strong>{legalName}</strong> zostanie trwale usunięty z tego urządzenia. Tej operacji nie można cofnąć.
+        </div>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button type="button" onClick={onCancel} style={{ background: '#F3F4F6', border: 'none', color: '#374151', borderRadius: 10, padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Anuluj</button>
+          <button type="button" onClick={onConfirm} style={{ background: '#DC2626', border: 'none', color: '#fff', borderRadius: 10, padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Usuń profil</button>
+        </div>
+      </div>
     </div>
   );
 }

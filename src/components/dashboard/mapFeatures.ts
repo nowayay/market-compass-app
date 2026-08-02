@@ -13,6 +13,7 @@ export function buildMapFeatures(worldFeatures: WorldFeature[], countries: Decor
       fill: match ? match.mapFill : '#D1D5DB',
       cursor: match ? 'pointer' : 'default',
       countryCode: match ? match.countryCode : null,
+      countryName: match ? match.countryName : null,
     };
   });
 }

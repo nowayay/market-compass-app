@@ -23,8 +23,8 @@ export default function TopExpansionCard({
           <span style={{ fontSize: 19, fontWeight: 800, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{country.countryName}</span>
         </div>
         <div style={{ flexShrink: 0 }}>
-          <span style={{ fontSize: 20, fontWeight: 800, color: country.tierColor }}>{country.score}</span>
-          <span style={{ fontSize: 12, color: '#9CA3AF' }}> /100</span>
+          <span style={{ fontSize: 20, fontWeight: 800, color: country.tierInk }}>{country.score}</span>
+          <span style={{ fontSize: 12, color: '#6B7280' }}> /100</span>
         </div>
       </div>
 
@@ -33,7 +33,7 @@ export default function TopExpansionCard({
       <button
         className="mc-top-expansion-cta"
         onClick={() => onSelectCountry(country.countryCode)}
-        style={{ width: '100%', border: 'none', background: '#F0FDF4', color: '#16A34A', borderRadius: 10, padding: '11px 0', fontSize: 13, fontWeight: 700, cursor: 'pointer', marginTop: 16 }}
+        style={{ width: '100%', border: 'none', background: '#F0FDF4', color: '#15803D', borderRadius: 10, padding: '11px 0', fontSize: 13, fontWeight: 700, cursor: 'pointer', marginTop: 16 }}
       >
         Zobacz szczegóły →
       </button>

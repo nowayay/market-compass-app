@@ -42,7 +42,7 @@ test("(dashboard rendering) a better rank (lower index) maps to a higher-or-equa
   const worst = decorateCountry(country({ score: 20 }), 14); // rank 15
   assert.equal(best.mapFill, mapFillOf(1));
   assert.equal(worst.mapFill, mapFillOf(15));
-  assert.notEqual(best.tierColor, worst.tierColor);
+  assert.notEqual(best.tierInk, worst.tierInk);
 });
 
 test("(dashboard rendering) tierOf groups ranks into the documented three bands (1-5, 6-10, 11-15)", () => {
@@ -54,19 +54,32 @@ test("(dashboard rendering) tierOf groups ranks into the documented three bands 
   assert.equal(tierOf(15).label, "Niski potencjał");
 });
 
-test("(dashboard rendering) decorateCountry assigns tier colors matching the 1-5 green / 6-10 orange / 11-15 red rank groups", () => {
+test("(dashboard rendering) decorateCountry assigns tier colors matching the 1-5 green / 6-10 amber / 11-15 red rank groups", () => {
   const rank1 = decorateCountry(country(), 0);
   const rank5 = decorateCountry(country(), 4);
   const rank6 = decorateCountry(country(), 5);
   const rank10 = decorateCountry(country(), 9);
   const rank11 = decorateCountry(country(), 10);
   const rank15 = decorateCountry(country(), 14);
-  assert.equal(rank1.tierColor, "#16A34A");
-  assert.equal(rank5.tierColor, "#16A34A");
-  assert.equal(rank6.tierColor, "#F59E0B");
-  assert.equal(rank10.tierColor, "#F59E0B");
-  assert.equal(rank11.tierColor, "#EF4444");
-  assert.equal(rank15.tierColor, "#EF4444");
+  // Ink: the darkened weight, used wherever the tier is read as a glyph.
+  assert.equal(rank1.tierInk, "#15803D");
+  assert.equal(rank5.tierInk, "#15803D");
+  assert.equal(rank6.tierInk, "#B45309");
+  assert.equal(rank10.tierInk, "#B45309");
+  assert.equal(rank11.tierInk, "#B91C1C");
+  assert.equal(rank15.tierInk, "#B91C1C");
+  // Fill: the bright weight, used only for the map's large areas.
+  assert.equal(rank1.mapFill, "#16A34A");
+  assert.equal(rank6.mapFill, "#D97706");
+  assert.equal(rank15.mapFill, "#EF4444");
+});
+
+test("(dashboard rendering) every tier's ink differs from its fill, and mapFillOf agrees with tierOf", () => {
+  for (const rank of [1, 6, 11]) {
+    const tier = tierOf(rank);
+    assert.notEqual(tier.ink, tier.fill, `tier at rank ${rank} must carry two distinct weights`);
+    assert.equal(mapFillOf(rank), tier.fill);
+  }
 });
 
 function fakeDashboard(): DashboardCompletedResponse {

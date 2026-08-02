@@ -42,6 +42,13 @@ export interface WorldFeature {
   d: string;
 }
 
+/**
+ * Whether the world-atlas outlines have loaded. `error` is a real state, not a
+ * variant of loading: the outlines come from a third-party CDN, and a failed
+ * fetch must offer a retry rather than spin forever.
+ */
+export type MapStatus = "loading" | "ready" | "error";
+
 /** A world-atlas outline decorated for rendering (fill color, click target). */
 export interface MapCountryFeature {
   iso3: string;
@@ -50,13 +57,23 @@ export interface MapCountryFeature {
   cursor: string;
   /** The matched ranked country's code, or null when this outline is unranked. */
   countryCode: string | null;
+  /** The matched country's display name, for the outline's accessible label. */
+  countryName: string | null;
 }
 
-/** A ranked country decorated with display-ready tier/color values. */
+/**
+ * A ranked country decorated with display-ready tier/color values.
+ *
+ * `tierInk` and `mapFill` are the same tier in two weights — see `tierOf` in
+ * lib/derive. Use `tierInk` wherever the tier is read as a glyph (score
+ * numbers, tier labels, the score ring's arc) and `mapFill` only for large
+ * areas of color. They are not interchangeable: the fills do not reach text
+ * contrast, and the inks are too dark to read as a traffic light across a map.
+ */
 export interface DecoratedCountry extends RankedCountry {
   rank: number;
   tierLabel: string;
-  tierColor: string;
+  tierInk: string;
   tierBg: string;
   mapFill: string;
 }
@@ -93,7 +110,7 @@ export interface AppState {
   selectedCountryCode: string | null;
   showAllRanking: boolean;
   mapFull: boolean;
-  mapReady: boolean;
+  mapStatus: MapStatus;
   worldFeatures: WorldFeature[];
   chatOpen: boolean;
   chatMessages: ChatMessage[];
