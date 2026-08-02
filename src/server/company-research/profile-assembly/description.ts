@@ -149,7 +149,7 @@ export function buildCompanyDescription(
   // agreement; an em dash separates the legal name from the industry summary.
   clauses.push({
     kind: "identity",
-    text: industryText !== null ? `${name} — ${industryText}` : name,
+    text: industryText !== null ? `${name} - ${industryText}` : name,
     shown: [],
   });
   if (products.length > 0) {

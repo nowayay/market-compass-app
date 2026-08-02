@@ -71,7 +71,7 @@ export function MapPaths({
             className="mc-map-path"
             role="button"
             tabIndex={0}
-            aria-label={`${mf.countryName ?? code} — zobacz szczegóły rynku`}
+            aria-label={`${mf.countryName ?? code} - zobacz szczegóły rynku`}
             onClick={() => onSelectCountry(code)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {

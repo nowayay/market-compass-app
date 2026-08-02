@@ -25,7 +25,7 @@ export default function CompanyFormScreen({
         </div>
 
         <div style={{ marginBottom: 8, fontSize: 26, fontWeight: 800, letterSpacing: '-0.01em', color: '#111827' }}>Znajdź swoją firmę</div>
-        <div style={{ marginBottom: 32, fontSize: 14.5, color: '#6B7280' }}>Podaj nazwę firmy — zidentyfikujemy ją w rejestrach publicznych i przygotujemy analizę potencjału ekspansji zagranicznej.</div>
+        <div style={{ marginBottom: 32, fontSize: 14.5, color: '#6B7280' }}>Podaj nazwę firmy - zidentyfikujemy ją w rejestrach publicznych i przygotujemy analizę potencjału ekspansji zagranicznej.</div>
 
         <form
           onSubmit={(e) => {
@@ -53,7 +53,7 @@ export default function CompanyFormScreen({
               style={{ width: '100%', padding: '12px 14px', border: `1px solid ${nameBorder}`, borderRadius: 10, fontSize: 15 }}
             />
           </div>
-          <div style={{ fontSize: 12, color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 12 }}>Opcjonalnie — zawęź wyszukiwanie</div>
+          <div style={{ fontSize: 12, color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 12 }}>Opcjonalnie - zawęź wyszukiwanie</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <div>
               <label htmlFor="company-founded-year" style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: '#1F2937', marginBottom: 6 }}>Rok założenia</label>
@@ -86,7 +86,7 @@ export default function CompanyFormScreen({
 
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', background: '#16A34A0D', border: '1px solid #16A34A26', borderRadius: 12, padding: '14px 16px', margin: '20px 0' }}>
             <span style={{ fontSize: 16, lineHeight: 1.3 }} aria-hidden="true">✦</span>
-            <div id="company-krs-hint" style={{ fontSize: 12.5, color: '#15803D', lineHeight: 1.5 }}>Numer KRS, jeśli go znasz, jest najsilniejszym identyfikatorem — pozwala jednoznacznie wskazać firmę bez konieczności wyszukiwania po nazwie.</div>
+            <div id="company-krs-hint" style={{ fontSize: 12.5, color: '#15803D', lineHeight: 1.5 }}>Numer KRS, jeśli go znasz, jest najsilniejszym identyfikatorem - pozwala jednoznacznie wskazać firmę bez konieczności wyszukiwania po nazwie.</div>
           </div>
 
           {apiError && (

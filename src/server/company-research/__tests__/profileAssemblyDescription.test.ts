@@ -29,14 +29,14 @@ test("all categories → full deterministic description", () => {
   }));
   assert.equal(
     d.text,
-    "PRZYKŁADOWA SPÓŁKA SP. Z O.O. — Tworzenie oprogramowania. Produkty i usługi: Aplikacje webowe. Klienci: MŚP. Rynki działalności: Polska.",
+    "PRZYKŁADOWA SPÓŁKA SP. Z O.O. - Tworzenie oprogramowania. Produkty i usługi: Aplikacje webowe. Klienci: MŚP. Rynki działalności: Polska.",
   );
 });
 
 // (16) industry only.
 test("industry only → identity clause only", () => {
   const d = buildCompanyDescription(NAME, facts({ industryDescription: "Handel detaliczny" }));
-  assert.equal(d.text, "PRZYKŁADOWA SPÓŁKA SP. Z O.O. — Handel detaliczny.");
+  assert.equal(d.text, "PRZYKŁADOWA SPÓŁKA SP. Z O.O. - Handel detaliczny.");
   assert.equal(d.usedIndustry, true);
 });
 
@@ -177,6 +177,6 @@ test("E: a later oversized clause is dropped, earlier clauses kept", () => {
   }));
   assert.ok(d.text);
   assert.ok(d.text!.length <= DESCRIPTION_MAX_LENGTH);
-  assert.ok(d.text!.startsWith("Krótka Nazwa — Usługi."));
+  assert.ok(d.text!.startsWith("Krótka Nazwa - Usługi."));
   assert.ok(d.text!.endsWith("."));
 });

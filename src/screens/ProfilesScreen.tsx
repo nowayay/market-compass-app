@@ -6,7 +6,7 @@ import { useDialog } from "../lib/useDialog";
 
 function formatSavedAt(savedAt: string): string {
   const date = new Date(savedAt);
-  if (Number.isNaN(date.getTime())) return "—";
+  if (Number.isNaN(date.getTime())) return "-";
   return new Intl.DateTimeFormat("pl-PL", {
     day: "numeric",
     month: "short",
@@ -123,7 +123,7 @@ export default function ProfilesScreen({
                 </div>
 
                 <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 5, fontSize: 12, color: '#6B7280' }}>
-                  <div>KRS: {p.dashboard.company.krs ?? '—'}</div>
+                  <div>KRS: {p.dashboard.company.krs ?? '-'}</div>
                   <div>Ostatnia analiza: {formatSavedAt(p.savedAt)}</div>
                 </div>
               </div>
