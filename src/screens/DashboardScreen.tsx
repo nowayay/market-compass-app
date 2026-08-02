@@ -1,5 +1,4 @@
-import type { MouseEvent } from "react";
-import type { DashboardCompletedResponse, DecoratedCountry, WorldFeature } from "../types";
+import type { DashboardCompletedResponse, DecoratedCountry, MapStatus, WorldFeature } from "../types";
 import Sidebar from '../components/dashboard/Sidebar';
 import StatusCard from '../components/dashboard/StatusCard';
 import BusinessDetailsCard from '../components/dashboard/BusinessDetailsCard';
@@ -13,22 +12,24 @@ export default function DashboardScreen({
   dashboard,
   countries,
   worldFeatures,
-  mapReady,
+  mapStatus,
   onOpenChat,
   onOpenExampleQuestion,
   onSelectCountry,
   onOpenMapFull,
+  onRetryMap,
   onNewAnalysis,
   onBackToProfiles,
 }: {
   dashboard: DashboardCompletedResponse;
   countries: DecoratedCountry[];
   worldFeatures: WorldFeature[];
-  mapReady: boolean;
+  mapStatus: MapStatus;
   onOpenChat: () => void;
   onOpenExampleQuestion: (question: string) => void;
   onSelectCountry: (countryCode: string) => void;
-  onOpenMapFull: (e: MouseEvent) => void;
+  onOpenMapFull: () => void;
+  onRetryMap: () => void;
   onNewAnalysis: () => void;
   onBackToProfiles: () => void;
 }) {
@@ -38,7 +39,7 @@ export default function DashboardScreen({
 
       <main style={{ flex: 1, minWidth: 0, padding: '26px 34px 70px', maxWidth: 1300 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 26 }}>
-          <div style={{ fontSize: 20, color: '#000000', marginTop: 4, fontWeight: 800 }}>Przegląd analizy ekspansji</div>
+          <div style={{ fontSize: 20, color: '#111827', marginTop: 4, fontWeight: 800 }}>Przegląd analizy ekspansji</div>
           <div style={{ display: 'flex', gap: 10 }}>
             <button
               onClick={onBackToProfiles}
@@ -67,11 +68,12 @@ export default function DashboardScreen({
         <div className="mc-analysis-grid">
           <div className="mc-col-left">
             <WorldMap
-              mapReady={mapReady}
+              mapStatus={mapStatus}
               worldFeatures={worldFeatures}
               countries={countries}
               onSelectCountry={onSelectCountry}
               onOpenMapFull={onOpenMapFull}
+              onRetryMap={onRetryMap}
             />
             <SwotQuadrants swot={dashboard.expansion.swot} />
             <SourcesList sources={dashboard.sources} />

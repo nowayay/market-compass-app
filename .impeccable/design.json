@@ -1,0 +1,552 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-02T00:00:00Z",
+  "title": "Design System: MarketCompass",
+  "extensions": {
+    "colorMeta": {
+      "compass-green": {
+        "role": "primary",
+        "displayName": "Compass Green (region)",
+        "canonical": "oklch(0.63 0.17 149)",
+        "tonalRamp": [
+          "oklch(0.15 0.06 149)",
+          "oklch(0.26 0.10 149)",
+          "oklch(0.37 0.14 149)",
+          "oklch(0.49 0.17 149)",
+          "oklch(0.63 0.17 149)",
+          "oklch(0.74 0.14 149)",
+          "oklch(0.86 0.09 149)",
+          "oklch(0.95 0.04 149)"
+        ]
+      },
+      "meridian-navy": {
+        "role": "secondary",
+        "displayName": "Meridian Navy",
+        "canonical": "oklch(0.29 0.07 262)",
+        "tonalRamp": [
+          "oklch(0.15 0.05 262)",
+          "oklch(0.22 0.06 262)",
+          "oklch(0.29 0.07 262)",
+          "oklch(0.41 0.08 262)",
+          "oklch(0.53 0.09 262)",
+          "oklch(0.67 0.07 262)",
+          "oklch(0.82 0.04 262)",
+          "oklch(0.95 0.02 262)"
+        ]
+      },
+      "tier-medium": {
+        "role": "tertiary",
+        "displayName": "Signal Amber (region)",
+        "canonical": "oklch(0.68 0.16 55)",
+        "tonalRamp": [
+          "oklch(0.15 0.05 55)",
+          "oklch(0.27 0.08 55)",
+          "oklch(0.39 0.11 55)",
+          "oklch(0.52 0.14 55)",
+          "oklch(0.60 0.15 55)",
+          "oklch(0.68 0.16 55)",
+          "oklch(0.84 0.10 55)",
+          "oklch(0.95 0.05 55)"
+        ]
+      },
+      "tier-low": {
+        "role": "tertiary",
+        "displayName": "Signal Red",
+        "canonical": "oklch(0.64 0.21 25)",
+        "tonalRamp": [
+          "oklch(0.15 0.07 25)",
+          "oklch(0.27 0.11 25)",
+          "oklch(0.39 0.15 25)",
+          "oklch(0.51 0.19 25)",
+          "oklch(0.64 0.21 25)",
+          "oklch(0.75 0.16 25)",
+          "oklch(0.86 0.09 25)",
+          "oklch(0.95 0.04 25)"
+        ]
+      },
+      "swot-violet": {
+        "role": "tertiary",
+        "displayName": "Analyst Violet",
+        "canonical": "oklch(0.53 0.24 292)",
+        "tonalRamp": [
+          "oklch(0.15 0.08 292)",
+          "oklch(0.26 0.13 292)",
+          "oklch(0.38 0.18 292)",
+          "oklch(0.53 0.24 292)",
+          "oklch(0.64 0.20 292)",
+          "oklch(0.75 0.14 292)",
+          "oklch(0.86 0.08 292)",
+          "oklch(0.95 0.04 292)"
+        ]
+      },
+      "danger": {
+        "role": "tertiary",
+        "displayName": "Alert Red",
+        "canonical": "oklch(0.58 0.21 27)",
+        "tonalRamp": [
+          "oklch(0.15 0.07 27)",
+          "oklch(0.25 0.11 27)",
+          "oklch(0.36 0.15 27)",
+          "oklch(0.47 0.19 27)",
+          "oklch(0.58 0.21 27)",
+          "oklch(0.71 0.17 27)",
+          "oklch(0.84 0.10 27)",
+          "oklch(0.95 0.04 27)"
+        ]
+      },
+      "link": {
+        "role": "tertiary",
+        "displayName": "Link Blue",
+        "canonical": "oklch(0.55 0.22 263)",
+        "tonalRamp": [
+          "oklch(0.15 0.08 263)",
+          "oklch(0.25 0.12 263)",
+          "oklch(0.35 0.17 263)",
+          "oklch(0.45 0.20 263)",
+          "oklch(0.55 0.22 263)",
+          "oklch(0.69 0.16 263)",
+          "oklch(0.83 0.09 263)",
+          "oklch(0.95 0.04 263)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "oklch(0.21 0.02 265)",
+        "tonalRamp": [
+          "oklch(0.15 0.02 265)",
+          "oklch(0.21 0.02 265)",
+          "oklch(0.28 0.02 265)",
+          "oklch(0.37 0.02 265)",
+          "oklch(0.51 0.02 265)",
+          "oklch(0.67 0.015 265)",
+          "oklch(0.83 0.01 265)",
+          "oklch(0.95 0.005 265)"
+        ]
+      },
+      "ground": {
+        "role": "neutral",
+        "displayName": "Ground",
+        "canonical": "oklch(0.99 0.002 250)",
+        "tonalRamp": [
+          "oklch(0.15 0.002 250)",
+          "oklch(0.30 0.002 250)",
+          "oklch(0.45 0.002 250)",
+          "oklch(0.60 0.002 250)",
+          "oklch(0.75 0.002 250)",
+          "oklch(0.88 0.002 250)",
+          "oklch(0.94 0.002 250)",
+          "oklch(0.99 0.002 250)"
+        ]
+      },
+      "seam": {
+        "role": "neutral",
+        "displayName": "Seam",
+        "canonical": "oklch(0.94 0.005 250)",
+        "tonalRamp": [
+          "oklch(0.15 0.005 250)",
+          "oklch(0.30 0.005 250)",
+          "oklch(0.45 0.005 250)",
+          "oklch(0.60 0.005 250)",
+          "oklch(0.75 0.005 250)",
+          "oklch(0.87 0.005 250)",
+          "oklch(0.94 0.005 250)",
+          "oklch(0.98 0.003 250)"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Surface",
+        "canonical": "#FFFFFF"
+      },
+      "ink-strong": {
+        "role": "neutral",
+        "displayName": "Ink Strong",
+        "canonical": "#1F2937"
+      },
+      "ink-muted": {
+        "role": "neutral",
+        "displayName": "Ink Muted",
+        "canonical": "#374151"
+      },
+      "ink-soft": {
+        "role": "neutral",
+        "displayName": "Ink Soft",
+        "canonical": "#6B7280"
+      },
+      "ink-faint": {
+        "role": "neutral",
+        "displayName": "Ink Faint (disabled / decoration only)",
+        "canonical": "#9CA3AF"
+      },
+      "stroke": {
+        "role": "neutral",
+        "displayName": "Stroke",
+        "canonical": "#E5E7EB"
+      },
+      "rule": {
+        "role": "neutral",
+        "displayName": "Rule",
+        "canonical": "#F5F6F8"
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "#F1F3F5"
+      },
+      "fill-inert": {
+        "role": "neutral",
+        "displayName": "Fill Inert",
+        "canonical": "#F3F4F6"
+      },
+      "unranked": {
+        "role": "neutral",
+        "displayName": "Unranked Gray",
+        "canonical": "#D1D5DB"
+      },
+      "compass-green-deep": {
+        "role": "primary",
+        "displayName": "Compass Green Deep (ink)",
+        "canonical": "#15803D"
+      },
+      "compass-green-tint": {
+        "role": "primary",
+        "displayName": "Compass Green Tint",
+        "canonical": "#DCFCE7"
+      },
+      "compass-green-wash": {
+        "role": "primary",
+        "displayName": "Compass Green Wash",
+        "canonical": "#F0FDF4"
+      },
+      "compass-green-veil": {
+        "role": "primary",
+        "displayName": "Compass Green Veil (8%)",
+        "canonical": "#16A34A14"
+      },
+      "legacy-cream": {
+        "role": "neutral",
+        "displayName": "Legacy Cream (deprecated)",
+        "canonical": "#FAF8F4"
+      },
+      "legacy-sand": {
+        "role": "neutral",
+        "displayName": "Legacy Sand (deprecated)",
+        "canonical": "#E8E2D8"
+      },
+      "compass-green-deepest": {
+        "role": "primary",
+        "displayName": "Compass Green Deepest (hover)",
+        "canonical": "#166534"
+      },
+      "tier-medium-ink": {
+        "role": "tertiary",
+        "displayName": "Signal Amber Ink",
+        "canonical": "#B45309"
+      },
+      "tier-low-ink": {
+        "role": "tertiary",
+        "displayName": "Signal Red Ink",
+        "canonical": "#B91C1C"
+      },
+      "ink-quiet": {
+        "role": "neutral",
+        "displayName": "Ink Quiet (secondary text on tinted fills)",
+        "canonical": "#4B5563"
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "One per entry screen: the page title. Also the sidebar wordmark at -0.02em."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Company legal name, dashboard page title, the number inside the score ring."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Every dashboard card heading. 16px for the SWOT card only."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Chat messages, country summaries, detail-panel prose."
+      },
+      "detail": {
+        "displayName": "Detail",
+        "purpose": "The workhorse: SWOT bullets, business bullets, source rows, meta lines, error text."
+      },
+      "action": {
+        "displayName": "Action",
+        "purpose": "Every button label without exception."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "The system's only uppercase: section labels in the country drawer, tier label above a country name."
+      },
+      "micro": {
+        "displayName": "Micro",
+        "purpose": "AI disclaimers and table column headers."
+      }
+    },
+    "shadows": [
+      {
+        "name": "seat",
+        "value": "0 1px 2px rgba(16,24,40,0.04)",
+        "purpose": "Every dashboard card at rest. Seats the card on the ground rather than lifting it; the 1px seam border does the separating."
+      },
+      {
+        "name": "lift",
+        "value": "0 8px 22px rgba(16,24,40,0.09)",
+        "purpose": "Hover response on clickable cards, paired with translateY(-2px)."
+      },
+      {
+        "name": "lift-profile",
+        "value": "0 8px 24px rgba(30,58,95,0.10)",
+        "purpose": "The profile card's navy-tinted hover lift."
+      },
+      {
+        "name": "popover",
+        "value": "0 8px 24px rgba(16,24,40,0.12)",
+        "purpose": "The profile context menu — the only floating element that is neither drawer nor modal."
+      },
+      {
+        "name": "drawer",
+        "value": "-16px 0 40px rgba(0,0,0,0.15)",
+        "purpose": "Directional shadow cast leftward by right-anchored drawers (chat, country detail)."
+      },
+      {
+        "name": "modal",
+        "value": "0 30px 80px rgba(0,0,0,0.3)",
+        "purpose": "The deepest layer: centered dialogs (full map, delete confirmation)."
+      },
+      {
+        "name": "accent-glow",
+        "value": "0 4px 14px rgba(22,163,74,0.25)",
+        "purpose": "The system's only colored shadow, under primary green buttons."
+      },
+      {
+        "name": "scrim",
+        "value": "rgba(17,24,39,0.5)",
+        "purpose": "Overlay backdrop behind drawers and the delete dialog; 0.55 behind the full map."
+      }
+    ],
+    "motion": [
+      {
+        "name": "screen-enter",
+        "value": "mc-fade-up 0.4s ease (opacity 0→1, translateY 10px→0)",
+        "purpose": "Screen entry on form, confirm, profiles and dashboard."
+      },
+      {
+        "name": "overlay-enter",
+        "value": "mc-fade-up 0.18s ease",
+        "purpose": "Same curve at overlay speed, so modals and drawers feel attached to the click."
+      },
+      {
+        "name": "spin",
+        "value": "mc-spin 0.9s linear infinite",
+        "purpose": "The 64px analysis spinner and its 18px inline twin in the country drawer."
+      },
+      {
+        "name": "typing",
+        "value": "mc-typing-bounce 1.2s infinite ease-in-out, dots staggered 0s / 0.15s / 0.3s",
+        "purpose": "The assistant composing a reply."
+      },
+      {
+        "name": "card-lift",
+        "value": "transform: translateY(-2px)",
+        "purpose": "Hover on any clickable card, paired with the lift shadow."
+      },
+      {
+        "name": "map-hover",
+        "value": "opacity .12s",
+        "purpose": "Country path hover drops to 0.78 opacity."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "analysis-collapse",
+        "value": "900px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single green action per screen: search, send, new profile.",
+      "html": "<button class=\"ds-btn-primary\">+ Nowy profil firmy</button>",
+      "css": ".ds-btn-primary { background: #15803D; color: #fff; border: none; border-radius: 10px; padding: 10px 18px; font: 700 13px/1.2 Inter, system-ui, sans-serif; cursor: pointer; box-shadow: 0 4px 14px rgba(22,163,74,0.25); } .ds-btn-primary:hover { background: #166534; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Neutral dashboard actions that must not compete with the green one.",
+      "html": "<button class=\"ds-btn-secondary\">← Wróć do profili</button>",
+      "css": ".ds-btn-secondary { background: #fff; border: 1px solid #E5E7EB; color: #374151; border-radius: 10px; padding: 10px 16px; font: 700 13px/1.2 Inter, system-ui, sans-serif; cursor: pointer; }"
+    },
+    {
+      "name": "Outline Accent Button",
+      "kind": "button",
+      "refersTo": "button-outline-accent",
+      "description": "The sidebar's chat CTA — the system's only 1.5px border.",
+      "html": "<button class=\"ds-btn-outline-accent\">Rozpocznij rozmowę</button>",
+      "css": ".ds-btn-outline-accent { width: 220px; background: #fff; border: 1.5px solid #15803D; color: #15803D; border-radius: 10px; padding: 10px 0; font: 700 13px/1.2 Inter, system-ui, sans-serif; cursor: pointer; } .ds-btn-outline-accent:hover { background: rgba(21,128,61,0.06); }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Company-name field. Focus is a border color change only — the system has no focus ring.",
+      "html": "<div class=\"ds-field\"><label class=\"ds-field-label\">Nazwa firmy <span>*</span></label><input class=\"ds-input\" placeholder=\"np. Nordic Furniture Co.\" /></div>",
+      "css": ".ds-field { width: 320px; font-family: Inter, system-ui, sans-serif; } .ds-field-label { display: block; font-size: 12.5px; font-weight: 600; color: #1F2937; margin-bottom: 6px; } .ds-field-label span { color: #16A34A; } .ds-input { width: 100%; padding: 12px 14px; border: 1px solid #E5E7EB; border-radius: 10px; font: 400 15px/1.4 Inter, system-ui, sans-serif; color: #111827; outline: none; background: #fff; } .ds-input::placeholder { color: #9CA3AF; } .ds-input:focus { border-color: #16A34A; }"
+    },
+    {
+      "name": "Dashboard Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "The container every dashboard region lives in: white on ground, 1px seam, seated shadow.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-title\">Najlepszy kierunek ekspansji</div><div class=\"ds-card-body\">Rynek o najwyższym dopasowaniu do profilu firmy wśród piętnastu ocenionych krajów.</div></div>",
+      "css": ".ds-card { background: #fff; border: 1px solid #EDEFF2; border-radius: 16px; padding: 20px 22px; box-shadow: 0 1px 2px rgba(16,24,40,0.04); font-family: Inter, system-ui, sans-serif; max-width: 340px; } .ds-card-title { font-size: 15px; font-weight: 800; color: #111827; margin-bottom: 14px; } .ds-card-body { font-size: 12.5px; color: #6B7280; line-height: 1.55; }"
+    },
+    {
+      "name": "Ranking Row",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "One country in the fifteen: rank, flag, name, tier-colored score, truncating summary.",
+      "html": "<div class=\"ds-rank-head\"><div>#</div><div>Kraj</div><div>Wynik</div><div>Podsumowanie</div></div><div class=\"ds-rank-row\"><div class=\"ds-rank-num\">1</div><div class=\"ds-rank-country\"><span class=\"ds-rank-flag\"></span><span class=\"ds-rank-name\">Niemcy</span></div><div class=\"ds-rank-score\">87</div><div class=\"ds-rank-summary\">Największy rynek eksportowy z niskimi barierami wejścia</div></div>",
+      "css": ".ds-rank-head, .ds-rank-row { display: grid; grid-template-columns: 26px 1.6fr 0.8fr 2fr; gap: 8px; align-items: center; font-family: Inter, system-ui, sans-serif; width: 420px; } .ds-rank-head { padding: 0 4px 10px; font-size: 11px; font-weight: 700; color: #6B7280; border-bottom: 1px solid #F1F3F5; } .ds-rank-row { padding: 11px 4px; border-bottom: 1px solid #F5F6F8; cursor: pointer; } .ds-rank-row:hover { background: #F9FAFB; } .ds-rank-num { font-size: 13px; font-weight: 700; color: #6B7280; } .ds-rank-country { display: flex; align-items: center; gap: 8px; min-width: 0; } .ds-rank-flag { width: 18px; height: 14px; border-radius: 2px; background: linear-gradient(180deg, #111827 33%, #DC2626 33% 66%, #F59E0B 66%); flex-shrink: 0; } .ds-rank-name { font-size: 13px; font-weight: 600; color: #111827; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-rank-score { font-size: 14px; font-weight: 800; color: #15803D; } .ds-rank-summary { font-size: 12px; color: #6B7280; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }"
+    },
+    {
+      "name": "Score Ring",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "Signature component: a 0-100 score drawn with a conic-gradient and no charting dependency.",
+      "html": "<div class=\"ds-ring\"><div class=\"ds-ring-inner\"><div class=\"ds-ring-score\">87</div><div class=\"ds-ring-max\">/100</div></div></div>",
+      "css": ".ds-ring { width: 84px; height: 84px; border-radius: 50%; background: conic-gradient(#15803D 87%, #EBECEF 0); display: flex; align-items: center; justify-content: center; font-family: Inter, system-ui, sans-serif; } .ds-ring-inner { width: 64px; height: 64px; border-radius: 50%; background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; } .ds-ring-score { font-size: 20px; font-weight: 800; color: #111827; } .ds-ring-max { font-size: 9.5px; color: #6B7280; }"
+    },
+    {
+      "name": "Status Chip",
+      "kind": "chip",
+      "refersTo": "chip-status",
+      "description": "Pill marking a completed analysis on a profile card, led by a 6px green dot.",
+      "html": "<span class=\"ds-chip-status\"><span class=\"ds-chip-dot\"></span>Analiza ukończona</span>",
+      "css": ".ds-chip-status { display: inline-flex; align-items: center; gap: 5px; background: #DCFCE7; color: #15803D; border-radius: 999px; padding: 3px 10px; font: 700 11px/1.3 Inter, system-ui, sans-serif; } .ds-chip-dot { width: 6px; height: 6px; border-radius: 50%; background: #16A34A; display: inline-block; }"
+    },
+    {
+      "name": "Chat Bubbles",
+      "kind": "custom",
+      "refersTo": "chat-bubble-user",
+      "description": "The assistant conversation: green user bubble right, inert-gray assistant bubble left, both 14px radius.",
+      "html": "<div class=\"ds-chat\"><div class=\"ds-bubble ds-bubble-user\">Które kraje są najlepsze dla mojej branży?</div><div class=\"ds-bubble ds-bubble-ai\">Na podstawie profilu firmy najwyżej ocenione zostały Niemcy, Czechy i Holandia.</div><div class=\"ds-bubble-note\">Odpowiedź została skrócona</div></div>",
+      "css": ".ds-chat { display: flex; flex-direction: column; gap: 14px; width: 320px; font-family: Inter, system-ui, sans-serif; } .ds-bubble { max-width: 82%; padding: 11px 14px; border-radius: 14px; font-size: 13px; line-height: 1.55; } .ds-bubble-user { align-self: flex-end; background: #15803D; color: #FFFFFF; } .ds-bubble-ai { align-self: flex-start; background: #F3F4F6; color: #111827; } .ds-bubble-note { align-self: flex-start; font-size: 11.5px; color: #6B7280; padding-left: 4px; }"
+    },
+    {
+      "name": "Example Question",
+      "kind": "nav",
+      "refersTo": null,
+      "description": "Sidebar canned-prompt row: full-width, left-aligned, chevron right, green on hover.",
+      "html": "<button class=\"ds-example-q\"><span>Porównaj rynek w Niemczech i we Francji</span><span class=\"ds-example-chevron\">›</span></button>",
+      "css": ".ds-example-q { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 224px; text-align: left; border: 1px solid #EDEFF2; background: #fff; border-radius: 10px; padding: 10px 12px; font: 400 12px/1.35 Inter, system-ui, sans-serif; color: #374151; cursor: pointer; } .ds-example-q:hover { border-color: #15803D; background: rgba(21,128,61,0.04); } .ds-example-chevron { color: #6B7280; flex-shrink: 0; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Expansion Briefing",
+    "overview": "MarketCompass looks like a briefing a consultant prepared overnight and left on your desk: structured, scannable, confident, and — critically — always the same shape. Two different companies produce two documents you can lay side by side, because the sections, the ranking, the score scale and the SWOT never rearrange themselves to suit the data. The interface's job is to make an AI-generated analysis feel prepared rather than improvised.\n\nThat ambition sets the density. This is not a spacious marketing surface and not a dense analyst console. Cards sit on a near-white ground separated by hairline seams, headings are heavy (800) and small, body text runs 12.5–13px, and nothing carries a gradient, a glow or an illustration. The one saturated color in the system is Compass Green, and it earns its loudness by being rare: it marks what is confirmed, what is best, and what you can act on. Everything else is graphite and paper.\n\nThe system is deliberately unshowy because the product's whole claim is verification. A screen that looks generated undermines a product whose differentiator is that its inputs are not. Three worlds are rejected outright: the generic AI-product landing (purple-to-blue gradients, glassmorphism, floating orbs, sparkle icons), playful consumer SaaS (mascots, pastel blobs, emoji-led empty states), and the crypto/fintech dark dashboard (dark ground, neon accents, animated tickers). Any of the three would cost the product the credibility it spends its whole pipeline earning.",
+    "keyCharacteristics": [
+      "Near-white ground, white cards, hairline seams — paper, not chrome",
+      "One saturated accent (Compass Green) doing signal duty, never decoration",
+      "Heavy small headings (800 weight at 15–26px) against light 12.5–13px body",
+      "A three-step traffic-light tier system that colors the ranking, the map and the score ring identically",
+      "Structural elevation: page → card → popover → drawer → modal, each with its own shadow step",
+      "Zero illustration, zero gradient, zero rounded-blob geometry"
+    ],
+    "rules": [
+      {
+        "name": "The One Signal Rule",
+        "body": "Compass Green is the only saturated color permitted for interface intent. If a screen needs a second \"look here\", the answer is weight, size or position — never a second accent hue. Audit test: on any screen, green should be traceable to action, confirmed fact, or rank 1–5. If it is on anything else, remove it.",
+        "section": "colors"
+      },
+      {
+        "name": "The Navy-Is-Identity Rule",
+        "body": "#13294F appears in the logo and wordmark and nowhere else. A navy button, navy heading, or navy border is a defect.",
+        "section": "colors"
+      },
+      {
+        "name": "The Tier-Means-Rank Rule",
+        "body": "Green / amber / red never encode sentiment, health or freshness. They encode position in the fifteen — 1–5, 6–10, 11–15 — and every surface showing that scale resolves it through the same tierOf(rank) helper in derive.ts. Never hand-assign a tier color.",
+        "section": "colors"
+      },
+      {
+        "name": "The Heavy-and-Small Rule",
+        "body": "Hierarchy is carried by weight before size. A heading never drops below 700, and 800 is the default for anything that titles a region. Reaching for a larger size to signal importance is the wrong lever; reach for weight, then for position.",
+        "section": "typography"
+      },
+      {
+        "name": "The Half-Point Rule",
+        "body": "This system genuinely uses half-point sizes (11.5, 12.5, 13.5, 14.5, 15.5) and they are load-bearing — 12.5 and 13 are distinct roles, not rounding noise. Preserve them. All type is specified in px, not rem, and no size is fluid; there is no clamp() anywhere.",
+        "section": "typography"
+      },
+      {
+        "name": "The One-Uppercase Rule",
+        "body": "Uppercase is reserved for the 11.5px section labels inside detail panels. Buttons, headings, chips and nav are always sentence case.",
+        "section": "typography"
+      },
+      {
+        "name": "The One-Breakpoint Rule",
+        "body": "The system currently adapts at 900px only, and the 264px sidebar does not collapse below it. This is the honest state, not a target — any work touching small screens is extending the system, not conforming to it, and should say so.",
+        "section": "layout"
+      },
+      {
+        "name": "The Ellipsize-Never-Scroll Rule",
+        "body": "Ranking rows, country names and summaries truncate with text-overflow: ellipsis on a single line. The page body never scrolls horizontally; a too-narrow column shortens its content instead.",
+        "section": "layout"
+      },
+      {
+        "name": "The Altitude-Is-Meaning Rule",
+        "body": "Never pick a shadow for looks. Pick the step that matches the layer: a card gets Seat, a hovering card gets Lift, a floating menu gets Popover, an edge-anchored panel gets Drawer, a centered dialog gets Modal. A new shadow value is a new layer, and there are no new layers.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Colored-Shadow Exception",
+        "body": "Exactly one colored shadow exists — the green glow under primary buttons. Do not tint any other shadow.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Short-Motion Rule",
+        "body": "Nothing animates longer than 0.4s and nothing animates that the user did not cause. There is no scroll-triggered motion, no parallax, and no decorative loop. The typing dots and the spinner are the only continuous animations, and both report machine state.",
+        "section": "components"
+      },
+      {
+        "name": "The Fill-Or-Ink Rule",
+        "body": "Every semantic color exists in two weights, and the question is never which looks better — it is what the eye is doing. Reading it as a shape? Use the fill. Reading it as letters? Use the ink. A thin graphic (the score ring's arc, a 1px rule) counts as letters. Audit test: if a colored value sits under a fontSize, it must be an ink.",
+        "section": "colors"
+      }
+    ],
+    "dos": [
+      "Do put new surfaces on ground (#FAFBFC) with white cards and 1px seam (#EDEFF2) borders. That pair is the settled system.",
+      "Do resolve every tier color through tierOf(rank) in derive.ts so the ranking, map, legend and score ring can never disagree — and take `ink` or `fill` from it deliberately, never whichever one is already in scope.",
+      "Do reach for weight before size when something needs to feel more important — 800 at 15px outranks 400 at 20px in this system.",
+      "Do keep the 16px card / 10px control radius pairing. A new radius value needs a reason that a listed step cannot serve.",
+      "Do match the shadow to the layer (Seat / Lift / Popover / Drawer / Modal), not to the mood.",
+      "Do preserve the half-point type sizes; 12.5px and 13px are distinct roles.",
+      "Do carry the AI disclaimer at 11px Ink Faint under any surface presenting generated analysis, as the SWOT card and country drawer already do.",
+      "Do state absence explicitly — #D1D5DB for unranked countries, an em dash for a missing KRS, a dashed-border panel for no saved profiles. Missing data is a designed state.",
+      "Do keep #9CA3AF off anything with a fontSize. It is a disabled-state and decoration value now."
+    ],
+    "donts": [
+      "Don't use #FAF8F4 or #E8E2D8 in new work. They are legacy warm values pending migration.",
+      "Don't introduce a second saturated accent. If green is already spoken for on the screen, the answer is weight, size or position.",
+      "Don't use Meridian Navy (#13294F) for anything but the logo and wordmark.",
+      "Don't add another near-duplicate green. #16803C has been consolidated onto #15803D; the greens are now #16A34A (region), #15803D (ink) and #166534 (hover), and that is the whole set.",
+      "Don't generalize Analyst Violet (#7C3AED). It exists to keep the fourth SWOT quadrant distinguishable and has no other license.",
+      "Don't use tier green/amber/red to mean anything except rank position 1–5 / 6–10 / 11–15. Sentiment, health and recency need a different device.",
+      "Don't add gradients, glassmorphism, blur backdrops, glow effects, sparkle or orb decoration, illustrated mascots, or pastel blob geometry. Each belongs to one of the three rejected worlds.",
+      "Don't animate anything the user did not cause, and don't exceed 0.4s.",
+      "Don't let the map be the only path to a country's data — the ranking list beside it carries that duty and must keep carrying it.",
+      "Don't reintroduce dead .mc-* rules. .mc-icon-btn, .mc-menu-item, .mc-new-profile-tile, .mc-dropdown-row, .mc-bubble, .mc-top3-card and the mc-pop keyframe are defined in globals.css but referenced by nothing."
+    ]
+  }
+}

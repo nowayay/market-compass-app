@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import type { ChangeEventHandler, KeyboardEvent } from "react";
 import type { ChatMessage } from "../types";
 import { sanitizeChatPlainText } from "../lib/ai/plainText";
+import { useDialog } from "../lib/useDialog";
 
 /** Three animated dots shown in the AI bubble while a response is generating. */
 function TypingDots() {
@@ -37,6 +38,7 @@ export default function ChatModal({
 }) {
   const stopProp = (e: React.MouseEvent) => e.stopPropagation();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const panelRef = useDialog(onClose);
 
   // Keep the newest message (and streamed text) in view.
   useEffect(() => {
@@ -57,7 +59,7 @@ export default function ChatModal({
     role: m.role,
     truncated: m.truncated === true,
     align: m.role === 'user' ? 'flex-end' : 'flex-start',
-    bg: m.role === 'user' ? '#16A34A' : '#F3F4F6',
+    bg: m.role === 'user' ? '#15803D' : '#F3F4F6',
     color: m.role === 'user' ? '#FFFFFF' : '#111827',
     // The streamed placeholder is the last message; show dots only until its
     // first text fragment arrives (an error/stop drops the placeholder outright).
@@ -66,15 +68,28 @@ export default function ChatModal({
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.5)', zIndex: 70, display: 'flex', justifyContent: 'flex-end', animation: 'mc-fade-up .18s ease' }} onClick={onClose}>
-      <div onClick={stopProp} style={{ width: 440, maxWidth: '94vw', height: '100%', background: '#fff', boxShadow: '-16px 0 40px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column' }}>
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="chat-modal-title"
+        onClick={stopProp}
+        style={{ width: 440, maxWidth: '94vw', height: '100%', background: '#fff', boxShadow: '-16px 0 40px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column' }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 22px', borderBottom: '1px solid #EDEFF2' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 9, background: '#16A34A14', color: '#16A34A', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>✦</div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: '#111827' }}>AI Chatbot</div>
+            <div aria-hidden="true" style={{ width: 32, height: 32, borderRadius: 9, background: '#16A34A14', color: '#16A34A', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>✦</div>
+            <div id="chat-modal-title" style={{ fontSize: 15, fontWeight: 800, color: '#111827' }}>AI Chatbot</div>
           </div>
-          <button onClick={onClose} style={{ background: '#F3F4F6', border: 'none', width: 32, height: 32, borderRadius: 9, cursor: 'pointer', fontSize: 15, color: '#6B7280' }}>✕</button>
+          <button type="button" onClick={onClose} aria-label="Zamknij czat" style={{ background: '#F3F4F6', border: 'none', width: 32, height: 32, borderRadius: 9, cursor: 'pointer', fontSize: 15, color: '#6B7280' }}>✕</button>
         </div>
-        <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {/*
+          The transcript is a live region: streamed replies arrive after focus
+          has moved on, so without it a screen-reader user is never told an
+          answer appeared. `polite` waits for a pause rather than interrupting.
+        */}
+        <div ref={scrollRef} aria-live="polite" style={{ flex: 1, overflowY: 'auto', padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
           {decorated.map((m, i) => (
             <div key={i} style={{ alignSelf: m.align, maxWidth: '82%', display: 'flex', flexDirection: 'column', gap: 5 }}>
               <div style={{ background: m.bg, color: m.color, padding: '11px 14px', borderRadius: 14, fontSize: 13, lineHeight: 1.55 }}>
@@ -89,7 +104,7 @@ export default function ChatModal({
                 )}
               </div>
               {m.truncated && (
-                <div style={{ fontSize: 11.5, color: '#9CA3AF', paddingLeft: 4 }}>Odpowiedź została skrócona</div>
+                <div style={{ fontSize: 11.5, color: '#6B7280', paddingLeft: 4 }}>Odpowiedź została skrócona</div>
               )}
             </div>
           ))}
@@ -105,10 +120,12 @@ export default function ChatModal({
             onKeyDown={handleKeyDown}
             maxLength={4000}
             placeholder="Zadaj pytanie o rynki…"
-            style={{ flex: 1, padding: '11px 14px', border: '1px solid #E5E7EB', borderRadius: 10, fontSize: 13, outline: 'none' }}
+            aria-label="Zadaj pytanie o rynki"
+            style={{ flex: 1, minWidth: 0, padding: '11px 14px', border: '1px solid #E5E7EB', borderRadius: 10, fontSize: 13 }}
           />
           {isGenerating ? (
             <button
+              type="button"
               onClick={onStop}
               aria-label="Zatrzymaj generowanie odpowiedzi"
               style={{ background: '#DC2626', color: '#fff', border: 'none', borderRadius: 10, padding: '0 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
@@ -117,8 +134,9 @@ export default function ChatModal({
             </button>
           ) : (
             <button
+              type="button"
               onClick={onSend}
-              style={{ background: '#16A34A', color: '#fff', border: 'none', borderRadius: 10, padding: '0 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+              style={{ background: '#15803D', color: '#fff', border: 'none', borderRadius: 10, padding: '0 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
             >
               Wyślij
             </button>
